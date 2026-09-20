@@ -8,6 +8,8 @@ import { applyDecision, expirePrevious } from './cue-reducer';
 import { emptyCueState, type CueState } from './types';
 
 export const PREVIOUS_CUE_MS = 4_000;
+// Bounded tolerance for ordinary append-only arrivals, not semantic freshness.
+export const MAX_DECISION_LAG_MS = 5_000;
 
 export type DecisionRecord = Readonly<{
   input: DecisionInput;
@@ -15,6 +17,7 @@ export type DecisionRecord = Readonly<{
   outcome: 'applied' | 'quiet' | 'discarded' | 'fallback';
   error: string | null;
   durationMs: number;
+  discardReason: 'cue-changed' | 'request-expired' | 'source-advanced' | 'source-evicted' | null;
 }>;
 
 export type EngineSnapshot = Readonly<{
@@ -131,7 +134,14 @@ export class CueEngine {
     }
 
     if (!this.disposed && generation === this.generation) {
-      const stale = input.evidence.version !== this.snapshot.evidence.version;
+      const advanced = input.evidence.version !== this.snapshot.evidence.version;
+      const candidate = decision.action === 'QUIET' ? undefined : input.candidates.find(c => c.id === decision.candidateId);
+      const discardReason: DecisionRecord['discardReason'] = input.currentCue !== this.snapshot.cues.currentCue ? 'cue-changed'
+        : advanced && this.clock.now() - startedAt > MAX_DECISION_LAG_MS ? 'request-expired'
+        : advanced && this.snapshot.evidence.fragments.at(-1)!.endMs - input.evidence.fragments.at(-1)!.endMs > MAX_DECISION_LAG_MS ? 'source-advanced'
+        : advanced && candidate && !candidate.sourceFragmentIds.every(id => this.snapshot.evidence.fragments.some(f => f.id === id)) ? 'source-evicted'
+        : null;
+      const stale = discardReason !== null;
       if (!stale && !error) {
         const prior = this.snapshot.cues;
         const next = applyDecision(prior, decision, input.candidates, this.clock.now(),
@@ -145,10 +155,11 @@ export class CueEngine {
             }, PREVIOUS_CUE_MS);
           }
         }
-        this.publish({ cues: next });
+        // A follow-up must see candidates rebuilt for the newly applied Cue.
+        this.publish({ cues: next, candidates: buildCandidates(this.snapshot.evidence, next.currentCue) });
       }
       this.publish({ lastDecision: Object.freeze({
-        input, decision, error, durationMs: Math.max(0, this.clock.now() - startedAt),
+        input, decision, error, discardReason, durationMs: Math.max(0, this.clock.now() - startedAt),
         outcome: stale ? 'discarded' : error ? 'fallback' : decision.action === 'QUIET' ? 'quiet' : 'applied',
       }) });
     }

@@ -2,7 +2,7 @@
 
 A small teaching-attention experiment. A learner sees the teaching point worth keeping in view, not a running transcript.
 
-This first slice is a single React + TypeScript application with five text replays and two selectable providers: an explicit scripted demo and Jev through a local server endpoint. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
+The React + TypeScript application has five text replays and two selectable providers: an explicit scripted demo and Jev through a local server endpoint. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
 
 ## Run it
 
@@ -36,6 +36,26 @@ Changing provider starts a fresh session. Reset and provider/lesson changes canc
 
 The local API is built into Vite's development and preview servers; no extra process is required. It is restricted to local same-origin HTTP requests and is not a public authenticated service. A bare static `dist/` host cannot run Jev; use `npm run preview` for the local built application. Public hosting/authentication is outside this slice.
 
+Jev always uses **structured-v3**. There is no context selector or older-context implementation. Remove old `JEV_CONTEXT_VERSION` settings from local configuration: an unset/empty value or `structured-v3` is accepted; any other value stops startup or replay with an explicit error.
+
+## Browser-free transcript replay
+
+```sh
+# Offline plumbing check; never calls a model.
+npm run replay -- --input /path/to/transcript-map.json --to 65000 --out artifacts/offline-check
+
+# Optional live use with an existing TypeSafe configuration; incurs provider usage.
+npm run replay -- --input /path/to/transcript-map.json --live --env-dir /path/to/existing/config --to 65000 --out artifacts/new-run
+```
+
+Supply a local JSON source with `--input`; the runner does not depend on evaluation materials being present in the repository. Its `fragments` array contains `{ id, text, startMs, endMs }` records. Captions become available only at their original end times; user/assistant annotations and future text are excluded from requests. The runner uses the production Cue Engine, candidates and V3 provider. It writes Markdown, JSON and JSONL with source provenance, actual requests/decisions, context/model/code identity, token usage when returned, and timing. Existing output names cannot be overwritten. Generated outputs belong in the ignored `artifacts/` directory.
+
+`--from` and `--to` use source milliseconds; without `--to`, replay continues through the final input fragment. The default `--mode semantic` waits for each decision; `--mode paced` follows original caption end times at 1×. `--prefix-run /path/to/run.json` (also `.json.gz`) reconstructs prior Cue state from recorded decisions strictly before the range, without model calls during that prefix. It requires the same source and semantic mode; wall-clock timestamps are recreated. New decisions always use V3. The old `--context` argument is no longer accepted.
+
+Provider request duration and source-ready-to-Cue-state publication are measured separately. Publication is an Engine-state proxy: browser paint, speech completion, ASR finalization, Speechmatics latency, refinement latency and perceived reading latency are not measured. Fast semantic replay does not establish real-time arrival behavior. The summary counts `failures` independently of decision outcomes. A completed run with any failure or fallback exits nonzero after writing its report, even if the failed decision was discarded; also inspect `interrupted` and `accepted`. Three consecutive failures stop the run; there are no automatic retries.
+
+**Product evaluation is unfinished.** Source materials, user/assistant annotations, segment definitions, reports, run outputs and follow-up notes are maintained as local working material outside the PR. Earlier runs remain available in the handoff archive and [checkpoint b793fec](https://github.com/shhh-hoo/CueLight/tree/b793fec6972c290bc28a5471144be6c7f7783f68/evaluation). Local copies under `evaluation/` are ignored. The replay tool and its deterministic tests remain versioned. No new paid evaluation was run to adopt V3.
+
 ## Runtime and ownership
 
 ```text
@@ -44,7 +64,7 @@ ReplayEvidenceSource.subscribe(finalFragment)
   → appendEvidence
   → buildCandidates
   → CueDecisionProvider.decide(snapshot)
-  → validate decision + evidence version + session generation
+  → validate decision + session/current Cue + bounded append-only freshness
   → applyDecision
   → current Cue / previous Cue
   → CueSurface
@@ -75,7 +95,9 @@ Candidates are the latest one, two, and three adjacent fragments, plus the span 
 
 `CueDecisionProvider.decide({ evidence, candidates, currentCue })` returns only `QUIET`, `NEW_CUE(candidateId)`, or `UPDATE_CURRENT(candidateId)`. Mock scripts match source ID ranges against actual candidates. Unknown inputs or unavailable script ranges return `QUIET`; scripts cannot inject display text.
 
-Only one decision may be in flight per Engine. Additional evidence sets one dirty bit. A result captured against an older version is discarded, then one request evaluates the newest evidence. There is no per-fragment queue or retry. All snapshots sent to the provider are immutable.
+Only one decision may be in flight per Engine. Additional evidence sets one dirty bit. A result can apply after new evidence arrives if the session and current Cue still match, request age and source-time advancement are each at most five seconds, and all selected source fragments remain in the evidence window. Rejections record a reason. Candidates are rebuilt after an accepted mutation, then one coalesced request evaluates the latest evidence. There is no per-fragment queue or retry. All snapshots sent to the provider are immutable.
+
+These temporal/source bounds allow progress; they do not recognize semantic freshness. Newer speech can correct or invalidate a statement, or change topic, inside the five-second interval. A temporarily outdated Cue can therefore appear before the follow-up decision. Semantic freshness remains an open product requirement.
 
 Reset increments a session generation so an old result cannot match a new session's reused evidence version. If a request is pending at reset, the same Engine waits for it to settle before evaluating new evidence. Disposal disconnects the source, clears the expiry timer, and ignores late responses. A future custom provider must settle its promises; the Jev adapter has a hard five-second deadline.
 
@@ -103,11 +125,11 @@ Authorization: Bearer <API_KEY>
 - Requests are limited to 2 MB and same-origin loopback hosts. Malformed input returns 400, missing key 503, and upstream failure 502. Raw upstream errors and credentials are never reflected to the browser. No request history is stored.
 - The HTTP provider has a 6.5-second browser deadline; the upstream adapter retains its five-second deadline. HTTP failures are caught by the same Engine and recorded as QUIET fallbacks, not successful semantic QUIET decisions.
 
-The request contains one `choice` question with `QUIET` and bounded NEW/UPDATE options for supplied candidates. Following the `typesafe-ai` skill and the official [source-span selection cookbook](https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook), code generates candidates and copies the selected text verbatim. Instructions refer explicitly to `evidence.fragments`, `currentCue`, and `candidates[index].text`; UPDATE criteria explain that the span replaces the whole Cue and must retain needed context. UPDATE options are omitted when no current Cue exists. The adapter maps a validated `answers.cue.choice` to a local action/ID pair; it never accepts generated Cue text. Confidence and probabilities are schema-validated, not used as product thresholds.
+The V3 request contains one `choice` question with `QUIET` and bounded NEW/UPDATE options for supplied candidates. Following the `typesafe-ai` skill and the official [source-span selection cookbook](https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook), code generates candidates and copies the selected text verbatim. State separates latest speech, background, current Cue provenance and candidate source overlap. Instructions and criteria use [backticked field paths](https://docs.typesafe.ai/primitives#reference-specific-fields), such as `latestInput.text`, `backgroundEvidence`, `currentCue.text` and `candidates[0].text`. With no current Cue, nested current-Cue references and UPDATE options are omitted. UPDATE replaces the whole Cue and must retain needed context. The adapter maps a validated `answers.cue.choice` to a local action/ID pair; it never accepts generated Cue text. Confidence and probabilities are schema-validated, not used as product thresholds.
 
 Missing credentials, malformed JSON/schema, unknown options, HTTP/network failures, and the five-second deadline return QUIET. There are no retries. An optional server-side error callback provides diagnostics. The deadline includes response-body parsing and settles even if a test transport ignores abort.
 
-**No real Jev calls have been executed during development.** Protocol checks use fake transport and fake credentials; the local HTTP bridge is tested over real loopback HTTP, and browser Jev tests intercept the local decision endpoint. Real model quality, latency, and provider account access remain unverified. Configure your key to use the integration; automated tests never call a model.
+**Historical live evaluations made 940 Jev decisions with 3 fallbacks.** Their mixed selection results and provider/publication timings are recorded in the unfinished local evaluation notes. They do not establish V3 semantic quality. Automated protocol checks use fake transport and credentials; the local HTTP bridge is tested over real loopback HTTP, and browser Jev tests intercept the local decision endpoint. Automated tests never call a model.
 
 ## Verification
 
@@ -120,13 +142,13 @@ npm run test:e2e
 
 `test:e2e` builds production output and starts development/preview servers on ports 5173/4173. `npm run check` runs the complete sequence. On Linux CI, Chromium is installed with `--with-deps`.
 
-Verified locally for this slice:
+The required checks cover:
 
-- TypeScript check and production build passed.
-- 72 unit/contract/HTTP integration tests passed: evidence bounds, exact contiguous candidates, Cue transitions, expiry, stale/coalesced requests, reset/disposal, deterministic replay, five subject scripts, Jev contracts, full replay through real local HTTP → fake upstream → Cue Engine, input validation, cancellation, and error redaction.
-- 14 Playwright browser tests passed, including the real-time replay, all five subjects, pause/reset/switching, keyboard/narrow layout, Jev provider selection, missing configuration, HTTP-driven NEW/UPDATE, failure preserving the current Cue, and cancellation on reset/provider switch.
-- Production verification found no debug panel or upstream Jev adapter/credentials in the JavaScript bundle, no external requests in scripted mode, and no browser-storage writes. The preview server's local configuration endpoint was also verified. Reload returned to the initial state.
-- Desktop and narrow screenshots were visually inspected. Browser tests write screenshots to `artifacts/`; CI uploads them with failure traces. Generated artifacts are not committed.
+- TypeScript and the production build.
+- Unit/contract/HTTP integration tests: evidence bounds, exact contiguous candidates, Cue transitions, expiry, bounded/coalesced requests, reset/disposal, deterministic replay, V3 field references and action mapping, configuration rejection, full replay through real local HTTP → fake upstream → Cue Engine, input validation, cancellation, and error redaction.
+- Playwright browser tests: real-time replay, all five subjects, pause/reset/switching, keyboard/narrow layout, Jev selection, missing configuration, HTTP-driven NEW/UPDATE, failure preserving the current Cue, and cancellation on reset/provider switch.
+- Production bundle isolation, no external requests in scripted mode, no browser-storage writes, preview-server configuration and reload behavior.
+- Browser screenshots and failure traces are written to ignored output directories and uploaded by CI; they are not committed.
 
 CI runs the same checks on pull requests, without model secrets or calls.
 

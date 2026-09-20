@@ -19,6 +19,29 @@ beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0); engines = []; });
 afterEach(() => { engines.forEach(engine => engine.dispose()); vi.useRealTimers(); });
 
 describe('one in-flight decision and one dirty bit', () => {
+  it('makes progress while new evidence keeps arriving faster than decisions settle', async () => {
+    const requests: { input: DecisionInput; pending: ReturnType<typeof deferred> }[] = [];
+    const engine = engineFor({ decide: input => {
+      const pending = deferred(); requests.push({ input, pending }); return pending.promise;
+    } });
+    engine.accept(fragment(1));
+    for (let cycle = 0; cycle < 4; cycle++) {
+      engine.accept(fragment(cycle * 2 + 2));
+      engine.accept(fragment(cycle * 2 + 3));
+      expect(requests).toHaveLength(cycle + 1);
+      await vi.advanceTimersByTimeAsync(150);
+      const request = requests[cycle]!;
+      request.pending.resolve(newest(request.input));
+      await flush();
+      expect(engine.getSnapshot().lastDecision?.outcome).toBe('applied');
+      expect(engine.getSnapshot().cues.currentCue?.sourceFragmentIds).toEqual([request.input.evidence.fragments.at(-1)!.id]);
+      expect(requests).toHaveLength(cycle + 2);
+      expect(requests[cycle + 1]!.input.evidence.version).toBe(cycle * 2 + 3);
+      expect(requests[cycle + 1]!.input.currentCue).toBe(engine.getSnapshot().cues.currentCue);
+    }
+    requests.at(-1)!.pending.resolve({ action: 'QUIET' }); await flush();
+  });
+
   it('discards stale results and collapses 100 arrivals into one latest follow-up without a queue', async () => {
     const first = deferred();
     const second = deferred();
@@ -33,6 +56,7 @@ describe('one in-flight decision and one dirty bit', () => {
     await flush();
     expect(engine.getSnapshot().cues.currentCue).toBeNull();
     expect(engine.getSnapshot().lastDecision?.outcome).toBe('discarded');
+    expect(engine.getSnapshot().lastDecision?.discardReason).toBe('source-advanced');
     expect(decide).toHaveBeenCalledTimes(2);
     expect(inputs[1]!.evidence.version).toBe(101);
     expect(inputs[1]!.evidence.fragments).toHaveLength(32);
@@ -41,6 +65,24 @@ describe('one in-flight decision and one dirty bit', () => {
     expect(engine.getSnapshot().cues.currentCue?.text).toBe('Teacher 101.');
     expect(engine.getSnapshot().status).toBe('idle');
     expect(decide).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['age', 'eviction'] as const)('rejects appended results outside the bounded acceptance rule: %s', async reason => {
+    const pending = deferred();
+    let firstInput!: DecisionInput;
+    const engine = engineFor({ decide: vi.fn().mockImplementationOnce((input: DecisionInput) => { firstInput = input; return pending.promise; }).mockResolvedValue({ action: 'QUIET' }) });
+    engine.accept(fragment(1));
+    if (reason === 'age') {
+      await vi.advanceTimersByTimeAsync(5_001);
+      engine.accept(fragment(2));
+    } else {
+      for (let n = 2; n <= 34; n++) engine.accept(fragment(n));
+    }
+    const discarded: string[] = [];
+    engine.subscribe(() => { const r = engine.getSnapshot().lastDecision; if (r?.outcome === 'discarded') discarded.push(r.discardReason!); });
+    pending.resolve(newest(firstInput)); await flush();
+    expect(discarded).toContain(reason === 'age' ? 'request-expired' : 'source-evicted');
+    expect(engine.getSnapshot().cues.currentCue).toBeNull();
   });
 
   it('reset prevents an old response with the same evidence version from writing into a new session', async () => {

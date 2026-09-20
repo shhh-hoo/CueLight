@@ -1,5 +1,9 @@
 # Product Validation Policy
 
+## TypeSafe / Jev skill
+
+Always use the `typesafe-ai` skill for work in this project, especially Jev request construction, integration and evaluation. Locate and read its current `SKILL.md` before changing those paths; if it is unavailable, report that explicitly rather than silently substituting remembered API guidance.
+
 CueLight is in an exploratory product phase. Optimize for learning from a working product, not for maximizing test coverage.
 
 1. Do not add tests merely to increase coverage.
