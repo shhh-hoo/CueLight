@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { loadEnv } from 'vite';
 import { CueEngine, type DecisionRecord } from '../src/cue/cue-engine';
 import { JevDecisionProvider } from '../src/decision/jev-decision-provider';
+import { buildJevRequest, type JevContextVersion } from '../src/decision/jev-context';
 import type { DecisionInput } from '../src/decision/decision-provider';
 import type { CueDecision } from '../src/decision/types';
 import type { Cue } from '../src/cue/types';
@@ -28,10 +29,14 @@ export async function main(args: string[]) {
     live: { type: 'boolean', default: false },
     input: { type: 'string', default: 'evaluation/materials/transcript-map.json' },
     out: { type: 'string', default: 'artifacts/replay' },
-    from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822500' },
+    from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822990' },
+    context: { type: 'string', default: 'structured-v2' },
     mode: { type: 'string', default: 'semantic' },
     'env-dir': { type: 'string', default: '.' },
+    'prefix-run': { type: 'string' },
   } });
+  if (!['baseline-v1', 'structured-v2'].includes(values.context)) throw new Error('Unknown context version.');
+  const contextVersion = values.context as JevContextVersion;
   const from = Number(values.from), to = Number(values.to);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from || !['semantic', 'paced'].includes(values.mode)) {
     throw new Error('Invalid range or mode.');
@@ -48,14 +53,21 @@ export async function main(args: string[]) {
   const out = resolve(values.out);
   mkdirSync(dirname(out), { recursive: true });
   if (await import('node:fs').then(fs => fs.existsSync(`${out}.json`))) throw new Error('Use a new output path; runs are immutable.');
+  const prefixRaw = values['prefix-run'] ? readFileSync(resolve(values['prefix-run'])) : undefined;
+  const prefix = prefixRaw ? JSON.parse(prefixRaw.toString()) as { metadata: { inputSha256: string; mode: string }; rows: Row[] } : undefined;
+  if (prefix && (prefix.metadata.inputSha256 !== sha(raw) || prefix.metadata.mode !== 'semantic' || values.mode !== 'semantic')) throw new Error('Prefix requires the same source and semantic mode.');
+  const prefixRows = new Map(prefix?.rows.map(r => [r.input.evidence.fragments.at(-1)!.id, r]));
+  let priming = false;
   const metadata = {
     createdAt: new Date().toISOString(), codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     worktreeDiffSha256: sha(execFileSync('git', ['diff', 'HEAD'])),
     engineSha256: sha(readFileSync('src/cue/cue-engine.ts')),
-    contextSha256: sha(readFileSync('src/decision/jev-decision-provider.ts')),
-    contextVersion: 'baseline-v1', inputSha256: sha(raw), captionSha256: corpus.rawSha256,
+    contextSha256: sha(readFileSync('src/decision/jev-context.ts')),
+    contextVersion, inputSha256: sha(raw), captionSha256: corpus.rawSha256,
     sourceUrl: corpus.sourceUrl, modelRequested: values.live ? env.JEV_MODEL || 'jev-latest' : 'offline-QUIET',
     live: values.live, mode: values.mode, from, to, fragmentCount: fragments.length,
+    prefixRunSha256: prefixRaw ? sha(prefixRaw) : null,
+    initialState: prefix ? 'reconstructed by same engine from archived decisions BEFORE range; timestamps re-created, no future decisions used' : 'empty',
     boundary: 'original MIT VTT captions, available at caption end; not Speechmatics Final',
     window: '20 seconds / 32 fragments; unchanged latest 1/2/3 + current-source-to-latest candidates',
     firstDisplayMeasurement: 'engine Cue-state publication proxy; browser paint, ASR and speech latency not measured',
@@ -70,7 +82,7 @@ export async function main(args: string[]) {
   let wireModel: string | undefined;
   let wireUsage: unknown;
   const jev = new JevDecisionProvider({
-    apiKey, model: env.JEV_MODEL,
+    apiKey, model: env.JEV_MODEL, contextVersion,
     onError: message => { providerFailure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.' ? message : 'Jev returned no usable decision.'; },
     transport: async (url, init) => {
       const response = await fetch(url, init);
@@ -85,9 +97,16 @@ export async function main(args: string[]) {
     },
   });
   const engine = new CueEngine({ decide: async input => {
+    if (priming) {
+      const archived = prefixRows.get(input.evidence.fragments.at(-1)!.id);
+      if (!archived?.returned) throw new Error('Missing prefix decision.');
+      return archived.returned;
+    }
     active = { index: rows.length + 1, input, requestedAtMs: now() };
     const row = active;
     rows.push(row);
+    appendFileSync(`${out}.jsonl`, JSON.stringify({ request: { index: row.index,
+      body: buildJevRequest(input, env.JEV_MODEL, contextVersion).body } }) + '\n');
     providerFailure = undefined; wireModel = undefined; wireUsage = undefined;
     const result = values.live ? await jev.decide(input) : { action: 'QUIET' } as const;
     row.returnedAtMs = now(); row.providerDurationMs = row.returnedAtMs - row.requestedAtMs;
@@ -117,6 +136,15 @@ export async function main(args: string[]) {
   let accepted = 0;
   let interrupted = false;
   try {
+    if (prefix) {
+      priming = true;
+      for (const fragment of corpus.fragments.filter(f => f.endMs < from)) {
+        if (!prefixRows.has(fragment.id)) throw new Error('Incomplete prefix.');
+        engine.accept(fragment); await idle();
+        if (engine.getSnapshot().lastDecision?.outcome === 'fallback') throw new Error('Prefix no longer matches candidates.');
+      }
+      priming = false;
+    }
     for (const fragment of fragments) {
       if (values.mode === 'paced') await wait(Math.max(0, fragment.endMs - from - now()));
       const arrivedAtMs = now(); arrivals.set(fragment.id, arrivedAtMs);
@@ -154,7 +182,7 @@ export async function main(args: string[]) {
       `Sources: ${row.input.currentCue?.sourceFragmentIds.join(', ') ?? 'none'}`, '', '**Actual candidates**', '');
     row.input.candidates.forEach((c, i) => md.push(`- C${i} ${c.id}: ${c.text}`));
     md.push('', `**Jev returned:** ${JSON.stringify(row.returned)}${row.failure ? `; failure: ${row.failure}` : ''}`, '',
-      `**Engine:** ${row.record?.outcome}; provider ${row.providerDurationMs?.toFixed(1)} ms; source-ready → Cue-state ${row.sourceReadyToCueStateMs?.toFixed(1) ?? 'n/a'} ms.`, '',
+      `**Engine:** ${row.record?.outcome}; discard reason: ${row.record?.discardReason ?? 'none'}; provider ${row.providerDurationMs?.toFixed(1)} ms; source-ready → Cue-state ${row.sourceReadyToCueStateMs?.toFixed(1) ?? 'n/a'} ms.`, '',
       '**Current Cue after application**', '', quote(row.currentCue?.text ?? '(none)'), '', `Sources: ${row.currentCue?.sourceFragmentIds.join(', ') ?? 'none'}`, '');
   }
   writeFileSync(`${out}.md`, md.join('\n') + '\n');

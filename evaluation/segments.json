@@ -1,0 +1,34 @@
+{
+  "selectedBeforeContextChange": true,
+  "startingState": "Each segment starts with empty Cue/evidence in both arms; no future text. Not a rerun of the full stateful lesson.",
+  "development": [
+    {
+      "name": "intro-definition",
+      "from": 0,
+      "to": 76700
+    },
+    {
+      "name": "acceptor-clarification",
+      "from": 276000,
+      "to": 414000
+    },
+    {
+      "name": "radius-and-ions",
+      "from": 1028030,
+      "to": 1118430
+    }
+  ],
+  "check": [
+    {
+      "name": "isoelectronic",
+      "from": 1381610,
+      "to": 1432420
+    },
+    {
+      "name": "bond-types",
+      "from": 1676646,
+      "to": 1756180
+    }
+  ],
+  "checkLimits": "These check regions were not used to tune the context or reviewed in baseline output before freezing v2. The source and human references were available, so this is not an independent benchmark."
+}

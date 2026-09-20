@@ -13,8 +13,19 @@ function answer(choice = 'NEW_CUE_0', probabilities = { QUIET: 0.1, NEW_CUE_0: 0
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('Jev contract, fake transport only', () => {
+  it('labels only arrived evidence and preserves current provenance without inventing evicted source text', () => {
+    const currentCue = { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 };
+    const request = buildJevRequest({ ...input, currentCue });
+    expect(request.body.state).toMatchObject({
+      latestInput: input.evidence.fragments[0], backgroundEvidence: [],
+      currentCue: { text: 'Earlier point.', sourceFragmentIds: ['f0'], sourceEvidenceStillInWindow: [], completeSourceStillInWindow: false },
+    });
+    expect(request.options.get('UPDATE_CURRENT_0')).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
+    expect(request.body.state.candidates[0]?.text).toBe(input.candidates[0]!.text);
+  });
+
   it('constructs one bounded choice question with no generated-text output path', () => {
-    const request = buildJevRequest(input);
+    const request = buildJevRequest(input, 'jev-latest', 'baseline-v1');
     expect(request.body.model).toBe('jev-latest');
     expect(Object.keys(request.body.questions)).toEqual(['cue']);
     expect(request.body.questions.cue.type).toBe('choice');
@@ -22,7 +33,7 @@ describe('Jev contract, fake transport only', () => {
     expect(request.body.questions.cue.criteria.NEW_CUE_0).toContain('`candidates[0].text`');
     expect([...request.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0']);
     expect(request.body.state).toEqual(input);
-    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } });
+    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } }, 'jev-latest', 'baseline-v1');
     expect([...withCurrent.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0', 'UPDATE_CURRENT_0']);
     expect(withCurrent.options.get('UPDATE_CURRENT_0')).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
     expect(withCurrent.body.questions.cue.criteria.UPDATE_CURRENT_0).toContain('does not append');
