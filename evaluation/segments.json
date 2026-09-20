@@ -1,6 +1,6 @@
 {
   "selectedBeforeContextChange": true,
-  "startingState": "Each segment starts with empty Cue/evidence in both arms; no future text. Not a rerun of the full stateful lesson.",
+  "startingState": "Both arms reconstruct Cue/evidence via archived baseline decisions strictly before the range, through the same Cue Engine. Cue wall timestamps are recreated. Then each arm uses live decisions and may diverge. No future text or labels.",
   "development": [
     {
       "name": "intro-definition",

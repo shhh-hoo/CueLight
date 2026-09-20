@@ -3,7 +3,7 @@ import { QUIET, type CueDecision } from './types.ts';
 
 export type JevContextVersion = 'baseline-v1' | 'structured-v2';
 
-export function buildJevRequest(input: DecisionInput, model = 'jev-latest', version: JevContextVersion = 'structured-v2') {
+export function buildJevRequest(input: DecisionInput, model = 'jev-latest', version: JevContextVersion = 'baseline-v1') {
   const baseline = buildBaselineJevRequest(input, model);
   if (version === 'baseline-v1') return baseline;
   const latestInput = input.evidence.fragments.at(-1) ?? null;

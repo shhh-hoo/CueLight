@@ -15,7 +15,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('Jev contract, fake transport only', () => {
   it('labels only arrived evidence and preserves current provenance without inventing evicted source text', () => {
     const currentCue = { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 };
-    const request = buildJevRequest({ ...input, currentCue });
+    const request = buildJevRequest({ ...input, currentCue }, 'jev-latest', 'structured-v2');
     expect(request.body.state).toMatchObject({
       latestInput: input.evidence.fragments[0], backgroundEvidence: [],
       currentCue: { text: 'Earlier point.', sourceFragmentIds: ['f0'], sourceEvidenceStillInWindow: [], completeSourceStillInWindow: false },

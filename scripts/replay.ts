@@ -1,4 +1,5 @@
-import { readFileSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -30,7 +31,7 @@ export async function main(args: string[]) {
     input: { type: 'string', default: 'evaluation/materials/transcript-map.json' },
     out: { type: 'string', default: 'artifacts/replay' },
     from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822990' },
-    context: { type: 'string', default: 'structured-v2' },
+    context: { type: 'string', default: 'baseline-v1' },
     mode: { type: 'string', default: 'semantic' },
     'env-dir': { type: 'string', default: '.' },
     'prefix-run': { type: 'string' },
@@ -52,8 +53,9 @@ export async function main(args: string[]) {
   if (values.live && !apiKey.trim()) throw new Error('Missing existing configuration.');
   const out = resolve(values.out);
   mkdirSync(dirname(out), { recursive: true });
-  if (await import('node:fs').then(fs => fs.existsSync(`${out}.json`))) throw new Error('Use a new output path; runs are immutable.');
-  const prefixRaw = values['prefix-run'] ? readFileSync(resolve(values['prefix-run'])) : undefined;
+  if (['.json', '.json.gz', '.jsonl', '.md'].some(ext => existsSync(`${out}${ext}`))) throw new Error('Use a new output path; runs are immutable.');
+  const prefixFile = values['prefix-run'] ? readFileSync(resolve(values['prefix-run'])) : undefined;
+  const prefixRaw = prefixFile && values['prefix-run']?.endsWith('.gz') ? gunzipSync(prefixFile) : prefixFile;
   const prefix = prefixRaw ? JSON.parse(prefixRaw.toString()) as { metadata: { inputSha256: string; mode: string }; rows: Row[] } : undefined;
   if (prefix && (prefix.metadata.inputSha256 !== sha(raw) || prefix.metadata.mode !== 'semantic' || values.mode !== 'semantic')) throw new Error('Prefix requires the same source and semantic mode.');
   const prefixRows = new Map(prefix?.rows.map(r => [r.input.evidence.fragments.at(-1)!.id, r]));
