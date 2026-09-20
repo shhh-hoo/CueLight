@@ -1,0 +1,81 @@
+:root { font-family: 'DM Sans', system-ui, sans-serif; color: #263b30; background: #f5f4ed; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, select { font: inherit; }
+button, a, select { -webkit-tap-highlight-color: transparent; }
+button, select { cursor: pointer; }
+button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #66894a; outline-offset: 5px; }
+button { border: 0; }
+button:disabled { cursor: default; opacity: .6; }
+.app-shell { max-width: 1180px; padding: 0 48px; margin: auto; }
+.app-header { display: flex; justify-content: space-between; align-items: center; min-height: 108px; border-bottom: 1px solid #dcded3; gap: 24px; }
+.wordmark { color: inherit; text-decoration: none; font-size: 25px; letter-spacing: -1.2px; font-weight: 600; display: inline-flex; align-items: center; gap: 12px; }
+.brand-mark { width: 32px; height: 35px; border: 1.5px solid #375541; border-radius: 14px 14px 9px 9px; display: grid; place-items: center; }
+.brand-mark i { display: block; width: 13px; height: 13px; border-radius: 50%; background: #789750; box-shadow: 0 0 0 4px #78975015; }
+.lesson-picker { display: flex; align-items: center; gap: 18px; font-size: 12px; color: #647065; }
+.lesson-picker select { border: 1px solid #d8dbcf; padding: 11px 34px 11px 14px; border-radius: 7px; background-color: #fbfaf5; color: #314735; font-size: 13px; max-width: 190px; }
+.lesson-heading { display: flex; align-items: center; justify-content: space-between; margin: 38px 0 26px; gap: 24px; }
+.eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 1.9px; font-weight: 600; }
+.lesson-heading .eyebrow { color: #75806e; margin: 0 0 12px; }
+.lesson-heading h2 { font-size: 22px; font-weight: 500; letter-spacing: -.6px; margin: 0 0 9px; }
+.lesson-heading > div > p:last-child { font-size: 13px; color: #737a70; margin: 0; }
+.replay-status { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 11px; color: #6d776c; }
+.replay-status span { width: 6px; height: 6px; border-radius: 50%; background: #a5ae99; }
+.replay-status.playing span { background: #487153; }
+.cue-surface { min-height: 500px; padding: 34px 62px 24px; background: #fcfcf7; border: 1px solid #e0e2d6; border-radius: 12px; box-shadow: 0 8px 28px #304a3210; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.previous-slot { min-height: 105px; }
+.previous-cue { border-left: 2px solid #dce1d1; padding-left: 18px; max-width: 710px; color: #77806f; }
+.previous-cue .eyebrow { margin: 0 0 8px; color: #78816f; font-size: 9px; }
+.previous-cue > p:last-child { font-family: 'Newsreader', Georgia, serif; font-size: 18px; line-height: 1.5; margin: 0 0 22px; }
+.current-slot { flex: 1; display: flex; align-items: center; padding: 24px 0 46px; min-width: 0; }
+.current-cue { max-width: 860px; }
+.current-cue .eyebrow { display: flex; gap: 9px; align-items: center; color: #5c7349; margin: 0 0 24px; }
+.cue-dot { width: 6px; height: 6px; background: #77964c; border-radius: 50%; }
+.cue-text { font-family: 'Newsreader', Georgia, serif; font-size: clamp(28px, 3.25vw, 42px); line-height: 1.28; letter-spacing: -.7px; margin: 0; white-space: pre-wrap; }
+.empty-cue { margin: -52px auto 0; text-align: center; }
+.empty-mark { color: #8aa56a; font-size: 30px; }
+.empty-cue h1 { font-family: 'Newsreader', Georgia, serif; font-size: 44px; font-weight: 400; letter-spacing: -1px; line-height: 1.12; margin: 18px 0 16px; }
+.empty-cue > p { font-size: 13px; line-height: 1.75; color: #78816f; margin: 0; }
+.surface-footer { display: flex; align-items: center; gap: 10px; font-size: 10px; letter-spacing: .3px; color: #909783; }
+.surface-footer span { width: 22px; height: 1px; background: #c0cbb1; }
+.replay-controls { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 23px 0 16px; }
+.buttons { display: flex; align-items: center; gap: 9px; }
+.primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: #2e523c; color: #f5f8ed; border-radius: 6px; padding: 13px 21px; font-size: 12px; min-height: 44px; }
+.primary-button:hover:not(:disabled) { background: #1f402d; }
+.primary-button span { font-size: 16px; }
+.reset-button { color: #6c7664; background: transparent; padding: 14px 18px; font-size: 12px; min-height: 44px; }
+.reset-button:hover { background: #e8eadf; border-radius: 6px; }
+.replay-controls > p { color: #7b8274; font-size: 10px; }
+.replay-controls > p span { padding: 0 8px; }
+.debug-toggle { display: flex; justify-content: flex-end; }
+.debug-toggle button { font-size: 10px; color: #6c7764; padding: 10px 0 10px 14px; background: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.app-footer { border-top: 1px solid #dcded3; margin-top: 20px; padding: 15px 0 26px; display: flex; justify-content: space-between; gap: 18px; color: #8a9181; font-size: 10px; }
+.debug-panel { background: #ebeee3; border: 1px solid #d2d9c7; padding: 26px; border-radius: 8px; margin-top: 15px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.debug-panel header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.debug-panel h2 { font-size: 19px; margin: 0; }
+.debug-panel h3 { margin-top: 24px; font-size: 12px; }
+.debug-panel pre { white-space: pre-wrap; font-size: 11px; background: #f6f8ef; padding: 14px; border-radius: 5px; }
+.debug-panel code { font-size: 10px; }
+.debug-panel li { padding: 5px 0; }
+.debug-summary { display: flex; gap: 28px; flex-wrap: wrap; }
+.debug-summary dt { color: #6c7764; font-size: 10px; }
+.debug-summary dd { margin: 4px 0 0; font-weight: 600; }
+@media (max-width: 640px) {
+  .app-shell { padding: 0 20px; }
+  .app-header { min-height: 85px; gap: 12px; }
+  .wordmark { font-size: 21px; gap: 8px; }
+  .lesson-picker > span { display: none; }
+  .lesson-picker select { max-width: 150px; padding-left: 10px; font-size: 12px; }
+  .lesson-heading { align-items: flex-start; flex-direction: column; gap: 12px; margin: 26px 0 20px; }
+  .lesson-heading h2 { font-size: 21px; }
+  .replay-status { margin: 0; }
+  .cue-surface { padding: 24px 25px 20px; min-height: 470px; }
+  .previous-slot { min-height: 85px; }
+  .previous-cue > p:last-child { font-size: 16px; }
+  .cue-text { font-size: 29px; letter-spacing: -.4px; }
+  .empty-cue h1 { font-size: 35px; }
+  .replay-controls { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .replay-controls > p { padding-left: 2px; }
+  .app-footer { font-size: 9px; }
+  .debug-panel { padding: 16px; }
+}
