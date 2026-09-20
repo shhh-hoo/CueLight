@@ -1,13 +1,20 @@
 import type { CueState } from '../cue/types';
+import type { DisplayState } from '../refinement/types';
 
-export function CueSurface({ cues }: { cues: CueState }) {
+export function CueSurface({ cues, display }: { cues: CueState; display?: DisplayState }) {
+  const text = (slot: 'currentCue' | 'previousCue') => {
+    const source = cues[slot];
+    const shown = display?.[slot];
+    return source && shown && source.id === shown.id && source.sourceRevision === shown.sourceRevision
+      ? shown.displayText : source?.text;
+  };
   return (
     <section className="cue-surface" aria-label="Learner surface">
       <div className="previous-slot">
         {cues.previousCue && (
           <article className="previous-cue" data-testid="previous-cue">
             <p className="eyebrow">Just before</p>
-            <p>{cues.previousCue.text}</p>
+            <p>{text('previousCue')}</p>
           </article>
         )}
       </div>
@@ -15,7 +22,7 @@ export function CueSurface({ cues }: { cues: CueState }) {
         {cues.currentCue ? (
           <article className="current-cue" key={cues.currentCue.id} data-testid="current-cue" data-cue-id={cues.currentCue.id}>
             <p className="eyebrow"><span className="cue-dot" /> Keep in view</p>
-            <p className="cue-text">{cues.currentCue.text}</p>
+            <p className="cue-text">{text('currentCue')}</p>
           </article>
         ) : (
           <div className="empty-cue">

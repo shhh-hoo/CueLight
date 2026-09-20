@@ -6,6 +6,8 @@ import { SessionDiagnostics } from '../speechmatics/session-diagnostics';
 import { SpeechmaticsEvidenceSource } from '../speechmatics/speechmatics-source';
 import { CueSurface } from './CueSurface';
 import { JevSetup } from './JevSetup';
+import { CueRefinement } from '../refinement/cue-refinement';
+import { RefinementControls } from './RefinementControls';
 
 const DebugPanel = import.meta.env.DEV ? lazy(() => import('./DebugPanel')) : null;
 
@@ -15,14 +17,16 @@ function createRuntime() {
   const diagnostics = import.meta.env.DEV ? new SessionDiagnostics(sessionId) : undefined;
   const engine = new CueEngine({ decide: input => diagnostics
     ? diagnostics.decide(input, () => http.decide(input)) : http.decide(input) });
+  const detach = diagnostics?.attach(engine);
+  const refinement = new CueRefinement(sessionId, engine, diagnostics?.observeRefinement);
   const source = new SpeechmaticsEvidenceSource({
     sessionId, observe: diagnostics?.observe,
-    drainDecisions: () => engine.drain(DECISION_DRAIN_MS),
-    abandonDecisions: () => { engine.dispose(); http.cancel(); },
+    drainDecisions: async () => { try { await engine.drain(DECISION_DRAIN_MS); } finally { refinement.finish(); } },
+    abandonDecisions: () => { refinement.finish(); engine.dispose(); http.cancel(); },
   });
   engine.connect(source);
-  const detach = diagnostics?.attach(engine);
-  return { sessionId, engine, source, diagnostics, dispose() { source.dispose(); engine.dispose(); http.cancel(); detach?.(); } };
+  return { sessionId, engine, source, diagnostics, refinement,
+    dispose() { refinement.dispose(); source.dispose(); engine.dispose(); http.cancel(); detach?.(); } };
 }
 type Runtime = ReturnType<typeof createRuntime>;
 
@@ -49,9 +53,10 @@ export function MicrophoneSession() {
 }
 
 function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Runtime }) {
-  const { engine, source, diagnostics } = runtime;
+  const { engine, source, diagnostics, refinement } = runtime;
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
   const input = useSyncExternalStore(source.subscribeStatus, source.getSnapshot);
+  const refined = useSyncExternalStore(refinement.subscribe, refinement.getSnapshot);
   const [jevReady, setJevReady] = useState(false);
   const [speechmaticsReady, setSpeechmaticsReady] = useState(false);
   const [setupMessage, setSetupMessage] = useState('Checking Speechmatics configuration…');
@@ -90,7 +95,7 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
   return <>
     <div className="lesson-heading"><div><p className="eyebrow">Live teaching / Microphone</p><h2>Keep the teaching point in view</h2><p>Speak naturally. CueLight keeps selected teaching content on screen.</p></div>
       <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p></div>
-    <CueSurface cues={snapshot.cues} />
+    <CueSurface cues={snapshot.cues} display={refined.cues} />
     <JevSetup onReady={setJevReady} />
     <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Speechmatics again</button>}</div>
     {(input.error || input.inputError || snapshot.inputError || snapshot.lastDecision?.error) &&
@@ -103,7 +108,8 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
             : input.status === 'stopped' ? 'Start new session' : 'Start microphone'}
       </button><button className="reset-button" onClick={() => reset()}>Reset</button>
     </div><p>Microphone <span>·</span> Mandarin / English <span>·</span> Jev</p></section>
+    <RefinementControls refinement={refinement} />
     {DebugPanel && <div className="debug-toggle"><button aria-expanded={debugOpen} onClick={() => setDebugOpen(open => !open)}>{debugOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button></div>}
-    {DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName="jev" diagnostics={diagnostics} /></Suspense>}
+    {DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName="jev" diagnostics={diagnostics} refinement={refined} /></Suspense>}
   </>;
 }

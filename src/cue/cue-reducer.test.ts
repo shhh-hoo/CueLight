@@ -17,7 +17,7 @@ describe('Cue reducer', () => {
   it('updates in place and moves current to previous only for NEW_CUE', () => {
     const first = applyDecision(emptyCueState(), { action: 'NEW_CUE', candidateId: 'a' }, candidates, 100, 'first');
     const updated = applyDecision(first, { action: 'UPDATE_CURRENT', candidateId: 'b' }, candidates, 200, 'unused');
-    expect(updated.currentCue).toEqual({ id: 'first', text: 'Teacher statement. Clarification.', sourceFragmentIds: ['f1', 'f2'], createdAt: 100, updatedAt: 200 });
+    expect(updated.currentCue).toEqual({ id: 'first', text: 'Teacher statement. Clarification.', sourceRevision: 2, sourceFragmentIds: ['f1', 'f2'], createdAt: 100, updatedAt: 200 });
     expect(updated.previousCue).toBeNull();
     expect(first.currentCue?.text).toBe('Teacher statement.');
     const next = applyDecision(updated, { action: 'NEW_CUE', candidateId: 'c' }, candidates, 300, 'second');

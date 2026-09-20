@@ -26,7 +26,7 @@ export function buildJevRequest(input: DecisionInput, model = 'jev-latest') {
   };
   const latestPath = latestInput ? '`latestInput.text`' : '`latestInput`';
   const currentDescription = current
-    ? '`currentCue` is what the learner can already read; `currentCue.text` and `currentCue.sourceFragmentIds` remain valid even if its source left the short window.'
+    ? '`currentCue` is the source wording selected for the current learner Cue; optional display refinement does not change this evidence. `currentCue.text` and `currentCue.sourceFragmentIds` remain valid even if its source left the short window.'
     : '`currentCue` is null; the learner has no current Cue.';
   const criteria: Record<string, string> = {
     QUIET: `Keep the existing Cue unchanged when ${latestPath} adds no material understanding, repeats it, is administration/filler, or no candidate forms a readable, useful whole. Do not replace a useful Cue with a vague recap or a dangling fragment. Waiting for more evidence is valid.`,

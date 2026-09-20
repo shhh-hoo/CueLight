@@ -1,6 +1,7 @@
 export type Cue = Readonly<{
   id: string;
   text: string;
+  sourceRevision: number;
   sourceFragmentIds: readonly string[];
   createdAt: number;
   updatedAt: number;
