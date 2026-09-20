@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
-test('production runs replay without diagnostics, a backend, or external model requests', async ({ page }) => {
+test('production demo runs without diagnostics, credentials, or external model requests', async ({ page }) => {
   const errors: string[] = [];
   const remote: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -22,4 +22,21 @@ test('production runs replay without diagnostics, a backend, or external model r
   expect(js).not.toContain('Behind the Cue');
   expect(js).not.toContain('api.typesafe.ai');
   expect(js).not.toContain('Authorization');
+});
+
+test('preview serves the local Jev configuration endpoint without leaking credentials', async ({ page, request }) => {
+  const response = await request.get('/api/jev/status');
+  expect(response.status()).toBe(200);
+  const value = await response.json();
+  expect(Object.keys(value).sort()).toEqual(['configured', 'model']);
+  expect(typeof value.configured).toBe('boolean');
+  expect(typeof value.model).toBe('string');
+  // No real decision calls in browser tests, including when a developer has a key configured.
+  await page.route('**/api/jev/status', route => route.fulfill({ json: { configured: false, model: 'jev-latest' } }));
+  await page.route('**/api/jev/decide', route => route.abort());
+  await page.goto('/');
+  await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
+  await expect(page.getByText('Add TYPESAFE_API_KEY', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start replay' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Show diagnostics' })).toHaveCount(0);
 });

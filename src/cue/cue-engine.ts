@@ -14,6 +14,7 @@ export type DecisionRecord = Readonly<{
   decision: CueDecision;
   outcome: 'applied' | 'quiet' | 'discarded' | 'fallback';
   error: string | null;
+  durationMs: number;
 }>;
 
 export type EngineSnapshot = Readonly<{
@@ -111,6 +112,7 @@ export class CueEngine {
   }
 
   private async evaluateLatest(): Promise<void> {
+    const startedAt = this.clock.now();
     this.inFlight = true;
     this.dirty = false;
     const generation = this.generation;
@@ -146,7 +148,7 @@ export class CueEngine {
         this.publish({ cues: next });
       }
       this.publish({ lastDecision: Object.freeze({
-        input, decision, error,
+        input, decision, error, durationMs: Math.max(0, this.clock.now() - startedAt),
         outcome: stale ? 'discarded' : error ? 'fallback' : decision.action === 'QUIET' ? 'quiet' : 'applied',
       }) });
     }

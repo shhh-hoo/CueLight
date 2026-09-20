@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   use: { ...devices['Desktop Chrome'], trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
-    { name: 'development', testMatch: 'replay.spec.ts', use: { baseURL: 'http://127.0.0.1:5173' } },
+    { name: 'development', testMatch: /(?:replay|jev)\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:5173' } },
     { name: 'production', testMatch: 'production.spec.ts', use: { baseURL: 'http://127.0.0.1:4173' } },
   ],
   webServer: [

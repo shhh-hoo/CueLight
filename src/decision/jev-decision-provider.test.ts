@@ -18,11 +18,14 @@ describe('Jev contract, fake transport only', () => {
     expect(request.body.model).toBe('jev-latest');
     expect(Object.keys(request.body.questions)).toEqual(['cue']);
     expect(request.body.questions.cue.type).toBe('choice');
+    expect(request.body.questions.cue.instructions).toContain('`evidence.fragments`');
+    expect(request.body.questions.cue.criteria.NEW_CUE_0).toContain('`candidates[0].text`');
     expect([...request.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0']);
     expect(request.body.state).toEqual(input);
     const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } });
     expect([...withCurrent.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0', 'UPDATE_CURRENT_0']);
     expect(withCurrent.options.get('UPDATE_CURRENT_0')).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
+    expect(withCurrent.body.questions.cue.criteria.UPDATE_CURRENT_0).toContain('does not append');
   });
 
   it('sends the verified endpoint, Bearer authentication and selectable model, and maps a choice to a supplied ID', async () => {
@@ -97,5 +100,19 @@ describe('Jev contract, fake transport only', () => {
     expect(transport).not.toHaveBeenCalled();
     vi.stubGlobal('window', {});
     expect(() => new JevDecisionProvider({ apiKey: 'test', transport })).toThrow('server-side');
+  });
+
+  it('a throwing diagnostic callback cannot change the QUIET fallback', async () => {
+    const transport = vi.fn<typeof fetch>().mockRejectedValue(new Error('Offline'));
+    const provider = new JevDecisionProvider({ apiKey: 'test', transport, onError: () => { throw new Error('Diagnostic sink failed'); } });
+    expect(await provider.decide(input)).toEqual({ action: 'QUIET' });
+  });
+
+  it('an already-cancelled caller does not issue an upstream request', async () => {
+    const transport = vi.fn<typeof fetch>();
+    const controller = new AbortController();
+    controller.abort();
+    expect(await new JevDecisionProvider({ apiKey: 'test', transport, signal: controller.signal }).decide(input)).toEqual({ action: 'QUIET' });
+    expect(transport).not.toHaveBeenCalled();
   });
 });

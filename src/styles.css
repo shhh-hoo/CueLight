@@ -14,6 +14,11 @@ button:disabled { cursor: default; opacity: .6; }
 .brand-mark i { display: block; width: 13px; height: 13px; border-radius: 50%; background: #789750; box-shadow: 0 0 0 4px #78975015; }
 .lesson-picker { display: flex; align-items: center; gap: 18px; font-size: 12px; color: #647065; }
 .lesson-picker select { border: 1px solid #d8dbcf; padding: 11px 34px 11px 14px; border-radius: 7px; background-color: #fbfaf5; color: #314735; font-size: 13px; max-width: 190px; }
+.session-selectors { display: flex; gap: 20px; flex-wrap: wrap; }
+.session-selectors .lesson-picker { gap: 10px; }
+.provider-setup { display: flex; gap: 14px; align-items: center; justify-content: space-between; color: #526447; font-size: 12px; line-height: 1.6; padding: 12px 0 0; }
+.provider-setup button { background: #e5e9da; color: #314735; padding: 10px 14px; border-radius: 5px; white-space: nowrap; }
+.provider-error { font-size: 12px; line-height: 1.6; color: #8c442e; }
 .lesson-heading { display: flex; align-items: center; justify-content: space-between; margin: 38px 0 26px; gap: 24px; }
 .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 1.9px; font-weight: 600; }
 .lesson-heading .eyebrow { color: #75806e; margin: 0 0 12px; }
@@ -63,6 +68,9 @@ button:disabled { cursor: default; opacity: .6; }
 @media (max-width: 640px) {
   .app-shell { padding: 0 20px; }
   .app-header { min-height: 85px; gap: 12px; }
+  .app-header { flex-wrap: wrap; padding: 20px 0; }
+  .session-selectors { gap: 10px; }
+  .provider-setup { align-items: flex-start; flex-direction: column; gap: 0; }
   .wordmark { font-size: 21px; gap: 8px; }
   .lesson-picker > span { display: none; }
   .lesson-picker select { max-width: 150px; padding-left: 10px; font-size: 12px; }

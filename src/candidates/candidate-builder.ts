@@ -1,5 +1,5 @@
-import type { Cue } from '../cue/types';
-import type { EvidenceFragment, EvidenceWindow } from '../evidence/evidence-buffer';
+import type { Cue } from '../cue/types.ts';
+import type { EvidenceFragment, EvidenceWindow } from '../evidence/evidence-buffer.ts';
 
 export type Candidate = Readonly<{
   id: string;

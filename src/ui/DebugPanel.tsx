@@ -1,6 +1,6 @@
 import type { EngineSnapshot } from '../cue/cue-engine';
 
-export default function DebugPanel({ snapshot }: { snapshot: EngineSnapshot }) {
+export default function DebugPanel({ snapshot, providerName }: { snapshot: EngineSnapshot; providerName: 'mock' | 'jev' }) {
   const last = snapshot.lastDecision;
   const decision = last?.decision;
   const selected = decision && decision.action !== 'QUIET'
@@ -9,13 +9,14 @@ export default function DebugPanel({ snapshot }: { snapshot: EngineSnapshot }) {
   return (
     <aside className="debug-panel" aria-label="Developer diagnostics">
       <header><h2>Behind the Cue</h2><span className="eyebrow">Development only</span></header>
-      <p>Scripted provider · deterministic behavior, not a semantic quality evaluation.</p>
+      <p>{providerName === 'jev' ? 'Jev provider · inspect decisions against the teaching evidence.' : 'Scripted provider · deterministic behavior, not a semantic quality evaluation.'}</p>
       <dl className="debug-summary">
         <div><dt>Evidence version</dt><dd data-testid="evidence-version">{snapshot.evidence.version}</dd></div>
         <div><dt>Request status</dt><dd>{snapshot.status}</dd></div>
         <div><dt>Request version</dt><dd>{snapshot.request?.evidence.version ?? '—'}</dd></div>
         <div><dt>Returned action</dt><dd data-testid="returned-action">{last?.decision.action ?? '—'}</dd></div>
         <div><dt>Outcome</dt><dd>{last?.outcome ?? '—'}</dd></div>
+        <div><dt>Decision latency</dt><dd>{last ? `${last.durationMs} ms` : '—'}</dd></div>
       </dl>
       {(snapshot.inputError || last?.error) && <p role="alert">{snapshot.inputError ?? last?.error}</p>}
       <h3>Incoming fragment</h3>
