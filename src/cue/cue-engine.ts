@@ -48,6 +48,7 @@ export class CueEngine {
   private disposed = false;
   private expiry: ReturnType<typeof setTimeout> | undefined;
   private disconnectSource: (() => void) | undefined;
+  private drainListeners = new Set<() => void>();
 
   constructor(private readonly provider: CueDecisionProvider, private readonly clock: Clock = systemClock) {}
 
@@ -87,6 +88,7 @@ export class CueEngine {
 
   reset(): void {
     this.generation++;
+    for (const check of this.drainListeners) check();
     this.dirty = false;
     this.cueSequence = 0;
     this.clearExpiry();
@@ -97,10 +99,33 @@ export class CueEngine {
   dispose(): void {
     this.disposed = true;
     this.generation++;
+    for (const check of this.drainListeners) check();
     this.dirty = false;
     this.clearExpiry();
     this.disconnectSource?.();
     this.listeners.clear();
+  }
+
+  // Wait through the transient idle publication between coalesced requests.
+  // The caller seals its source first, so at most the active request and one
+  // latest-input request remain. Reset/disposal cancel, never complete, a drain.
+  drain(timeoutMs = 14_000): Promise<void> {
+    const generation = this.generation;
+    return new Promise<void>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (error?: Error) => {
+        if (timer !== undefined) this.clock.clearTimeout(timer);
+        this.drainListeners.delete(check);
+        if (error) reject(error); else resolve();
+      };
+      const check = () => {
+        if (this.disposed || generation !== this.generation) finish(new Error('Decision drain cancelled.'));
+        else if (!this.inFlight && !this.dirty) finish();
+      };
+      this.drainListeners.add(check);
+      timer = this.clock.setTimeout(() => finish(new Error('Jev did not finish draining. The session is incomplete.')), timeoutMs);
+      check();
+    });
   }
 
   private publish(changes: Partial<EngineSnapshot>): void {
@@ -167,5 +192,6 @@ export class CueEngine {
     if (this.disposed) return;
     this.publish({ status: 'idle', request: null });
     if (this.dirty) void this.evaluateLatest();
+    for (const check of this.drainListeners) check();
   }
 }

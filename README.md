@@ -2,7 +2,7 @@
 
 A small teaching-attention experiment. A learner sees the teaching point worth keeping in view, not a running transcript.
 
-The React + TypeScript application has five text replays and two selectable providers: an explicit scripted demo and Jev through a local server endpoint. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
+The React + TypeScript application supports microphone input through Speechmatics Realtime and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
 
 ## Run it
 
@@ -15,7 +15,7 @@ npm run dev
 
 Open the local URL printed by Vite. Choose Science, History, Literature, Programming, or Mathematics, then select **Start replay**. Each 16.8-second sample includes filler, a new point, a clarification, and a different point. Pause/continue preserves replay timing. Reset clears evidence, Cues, diagnostics, and replay position. Changing lessons starts a fresh session.
 
-**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. It retains a bounded snapshot, not a growing event log.
+**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Text replay retains a bounded snapshot. Microphone sessions additionally retain an in-memory diagnostic journal that you can explicitly download before resetting or switching sources.
 
 ```sh
 npm run build
@@ -38,6 +38,30 @@ The local API is built into Vite's development and preview servers; no extra pro
 
 Jev always uses **structured-v3**. There is no context selector or older-context implementation. Remove old `JEV_CONTEXT_VERSION` settings from local configuration: an unset/empty value or `structured-v3` is accepted; any other value stops startup or replay with an explicit error.
 
+## Use the microphone
+
+1. In this checkout's ignored `.env.local`, set both `TYPESAFE_API_KEY` and `SPEECHMATICS_API_KEY`. Keep both server-only, without a `VITE_` prefix. Do not overwrite an existing configuration file. `JEV_MODEL=jev-latest` is optional.
+2. Run `npm ci`, then `npm run dev`. For the built local app, run `npm run build` and `npm run preview`. A static file host cannot mint credentials or serve Jev decisions.
+3. Open Vite's loopback URL in a browser supporting microphone capture, AudioContext, AudioWorklet and module Workers. Select **Microphone** in **Input source**. Configuration checks do not call either paid provider and do not validate the keys.
+4. Click **Start microphone**, allow microphone access, and wait for **Microphone live · you can speak now**. Audio captured while connecting is not sent. Speechmatics receives audio directly from the browser; finalized text goes to the existing Jev V3 decision pipeline. Starting uses your Speechmatics and TypeSafe accounts.
+5. Click **Stop microphone** to release the microphone and finish pending results. Wait for **Session stopped**. Reset, changing source, or leaving the page cancels immediately instead of draining. Reconnect and **Start new session** start fresh evidence, Cue state and audio timestamps; they do not resume the old session.
+
+Only Speechmatics `AddTranscript` events enter the Engine. Partials are disabled and ignored; no silence/EndOfUtterance trigger, semantic splitting or transcription rewriting is added. Natural Final boundaries are retained. Seconds become source milliseconds; session UUIDs and receive sequence numbers identify fragments. Identical source times plus identical text identify duplicate deliveries; the same text spoken at later times remains new evidence. Empty Finals are skipped; invalid, out-of-order or over-4096-character Finals are visibly diagnosed without truncation.
+
+The pinned official SDKs are `@speechmatics/browser-audio-input@2.0.4` (PCMRecorder and its bundled AudioWorklet) and `@speechmatics/real-time-client@8.5.1`. Audio is mono `pcm_f32le` at the actual AudioContext sample rate. A per-session Worker owns the realtime SDK connection, providing a hard cancellation boundary because this SDK version has no public force-close method. Audio sending does not await Jev; Final intake retains the Engine's existing bounded coalescing behavior.
+
+The fixed initial transcription configuration is `language: cmn_en`, `model: enhanced`, `max_delay: 2`, `max_delay_mode: flexible`, and `enable_partials: false`, using `wss://global.rt.speechmatics.com/v2`. This favors readable Mandarin/English transcription with moderate delay. Flexible formatting can wait longer for entities such as numbers; two seconds is not a speech-to-Cue guarantee. See the official [languages](https://docs.speechmatics.com/speech-to-text/languages), [models](https://docs.speechmatics.com/speech-to-text/models), [audio input](https://docs.speechmatics.com/speech-to-text/realtime/input), and [latency documentation](https://docs.speechmatics.com/speech-to-text/realtime/output), checked on 2026-09-20.
+
+The local `GET /api/speechmatics/status` exposes only readiness. `POST /api/speechmatics/token` requires a loopback Host, an explicit matching Origin, JSON content type and an empty object, with a 1 KB body limit. It mints a 60-second realtime JWT using the server key, with a five-second deadline, no CORS access and no caching. Provider errors are not reflected. JWTs stay in session memory and are excluded from diagnostic records and browser storage. See [official temporary-key authentication](https://docs.speechmatics.com/get-started/authentication).
+
+Normal stop waits for acknowledgements of all delivered audio blocks before the SDK sends EndOfStream, then accepts trailing Finals until EndOfTranscript. The ASR drain is bounded to ten seconds, followed by up to fourteen seconds for the current and coalesced Jev decisions. A timeout reports an incomplete session and retains the existing Cue. Source failures and Jev failures appear outside the learner surface; neither is presented as a successful semantic QUIET. See the [realtime protocol](https://docs.speechmatics.com/api-ref/realtime-transcription-websocket).
+
+In development, **Show diagnostics → Export session diagnostics** downloads JSON containing Final originals/times, accepted fragments, request candidates, Jev actions and Cue application outcomes. Its top-level `fragments` work with the existing transcript replay runner. No database, automatic upload, raw audio recording or browser-storage persistence is added. Reset/source changes discard the in-memory journal, so export first if needed.
+
+Diagnostic `atMonoMs` values use main-thread `performance.now()`; Final receipt means delivery of the SDK event to the source adapter. Audio source times remain a separate timeline. No audio-to-local-clock mapping, audio-end-to-Final latency, browser paint measurement, or inference that a Final ends a complete teaching point is claimed. Diagnostic logging failures do not change decisions and mark the export `recordingFailed`.
+
+**Validation status:** the microphone integration is implemented, but a real Speechmatics session and the user's actual teaching experience have not been verified. Development-page loading, missing-configuration controls and loading the official AudioWorklet in a real browser were checked. Further testing was deferred at the user's request; no new simulated microphone/Speechmatics tests are included. Natural Final granularity, candidate coverage, missed/jumping Cues, corrections and perceived delay remain product observations for real use.
+
 ## Browser-free transcript replay
 
 ```sh
@@ -59,7 +83,7 @@ Provider request duration and source-ready-to-Cue-state publication are measured
 ## Runtime and ownership
 
 ```text
-ReplayEvidenceSource.subscribe(finalFragment)
+ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
   → CueEngine.accept(fragment)
   → appendEvidence
   → buildCandidates
@@ -75,7 +99,8 @@ ReplayEvidenceSource.subscribe(finalFragment)
 | `src/evidence/evidence-buffer.ts` | Immutable snapshots of up to 20 seconds / 32 finalized fragments; version increments on accepted input. |
 | `src/candidates/candidate-builder.ts` | Up to four deduplicated, contiguous source spans. No paraphrasing, summarization, NLP, or ontology. |
 | `src/decision/` | Provider contract, validation, scripted mock, same-origin HTTP client, and server-only Jev adapter. |
-| `server/` | Bounded request validation and local Jev endpoints, mounted by `vite.config.ts` in dev and preview. |
+| `server/` | Bounded request validation, local Jev endpoints and Speechmatics token minting, mounted by `vite.config.ts` in dev and preview. |
+| `src/speechmatics/` | Official browser audio/SDK connection, natural Final adapter, source lifecycle and development session diagnostics. |
 | `src/cue/cue-engine.ts` | Evidence intake, a single in-flight request, one dirty bit, version/session guards, diagnostics, and previous-Cue expiry. |
 | `src/cue/cue-reducer.ts` | Pure `QUIET`, `NEW_CUE`, and `UPDATE_CURRENT` transitions. |
 | `src/replay/` | Timer-driven finalized input and five fixtures with separate, explicit decision scripts. |
@@ -85,9 +110,9 @@ ReplayEvidenceSource.subscribe(finalFragment)
 
 ### Evidence and candidates
 
-Source adapters must deliver unique finalized fragment IDs in chronological `endMs` order with valid nonnegative timestamps and nonempty text. A fragment is limited to 4,096 characters to keep the in-memory bound meaningful; oversized text is rejected rather than rewritten. Adapters should emit shorter finalized fragments. Duplicate IDs in the current window and out-of-order fragments are rejected and diagnosed. IDs must not be reused within a source session.
+Source adapters must deliver unique finalized fragment IDs in chronological `endMs` order with valid nonnegative timestamps and nonempty text. A fragment is limited to 4,096 characters to keep the in-memory bound meaningful; oversized text is rejected and diagnosed rather than rewritten or split. Duplicate IDs in the current window and out-of-order fragments are rejected and diagnosed. IDs must not be reused within a source session.
 
-On append, fragments ending earlier than `latest.endMs - 20_000` are evicted; at most the last 32 are retained. No idle sweep or lesson history is maintained. Each Cue keeps its own selected text and original source IDs even after those source fragments leave the evidence window. With replay fixtures, the IDs identify the original static input. A future live source does not cause the Engine to archive its transcript.
+On append, fragments ending earlier than `latest.endMs - 20_000` are evicted; at most the last 32 are retained. No idle sweep or lesson history is maintained by the Engine. Each Cue keeps its own selected text and original source IDs even after those source fragments leave the evidence window. With replay fixtures, the IDs identify the original static input. Microphone development diagnostics separately retain session records in memory for explicit export.
 
 Candidates are the latest one, two, and three adjacent fragments, plus the span from the current Cue's first source fragment through the newest fragment, only while its complete original range remains in the window. Smaller windows yield fewer candidates. Text is preserved exactly, with one space between fragments. Candidate IDs encode the ordered source ID list.
 
@@ -156,4 +181,4 @@ CI runs the same checks on pull requests, without model secrets or calls.
 
 This is not closed captioning. Useful screen changes are not guaranteed for every fragment, and the learner never sees incoming transcript just because it arrived. Plain text is displayed verbatim; it may contain speech-like wording. Future formatting belongs between Cue and rendering, not inside decision logic.
 
-There is no live speech/ASR, editable lesson corpus, durable lesson state, concept graph, scheduler, task queue, model-generated text, semantic evaluation benchmark, deployment, or standalone backend framework. The next product question is whether Jev chooses useful source spans across subjects. The integration tests establish connectivity behavior, not model quality.
+There is no semantic speech segmentation, OpenAI refinement, editable lesson corpus, durable lesson state, concept graph, scheduler, task queue, model-generated text, semantic evaluation benchmark, deployment, or standalone backend framework. The next product question is whether natural Speechmatics Finals and existing candidates let Jev choose useful content while someone teaches. Existing engineering checks do not establish real ASR performance or model quality.
