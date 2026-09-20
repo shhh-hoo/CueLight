@@ -1,0 +1,698 @@
+{
+  "schemaVersion": 1,
+  "annotator": "assistant",
+  "status": "independent editorial reference, not user gold and not Jev output",
+  "createdAt": "2026-09-20",
+  "reviewedParagraphRange": [
+    "P001",
+    "P106"
+  ],
+  "sourceRawSha256": "b5ec6831b83173354110fb40097f666e9d7295da39160aba62b5a4a6dbcd66a8",
+  "timingPolicy": "Availability only at final contributing caption end; no target duration or onset tolerance",
+  "selections": [
+    {
+      "id": "A01",
+      "paragraphStart": "P003",
+      "paragraphEnd": "P003",
+      "quote": "So electron negativity, the net ability of an atom to attract an electron from another atom.",
+      "charStart": 706,
+      "charEnd": 798,
+      "sourceFragmentIds": [
+        "chem-09-0018",
+        "chem-09-0019"
+      ],
+      "sourceStartMs": 51430,
+      "availableAtMs": 59610,
+      "captionEnvelopeMs": 8180,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 4880,
+      "note": "Opening definition. Preserve the caption's wording; do not silently normalize terminology."
+    },
+    {
+      "id": "A02",
+      "paragraphStart": "P010",
+      "paragraphEnd": "P010",
+      "quote": "So yes, if it has high electronegativity, it's going to be an electron acceptor. And part of the reason for that is that it has a high affinity for electrons.",
+      "charStart": 3156,
+      "charEnd": 3314,
+      "sourceFragmentIds": [
+        "chem-09-0082",
+        "chem-09-0083",
+        "chem-09-0084",
+        "chem-09-0085"
+      ],
+      "sourceStartMs": 278710,
+      "availableAtMs": 289400,
+      "captionEnvelopeMs": 10690,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7410,
+      "note": "Resolve the clicker question with the rule and its immediate explanation."
+    },
+    {
+      "id": "A03",
+      "paragraphStart": "P011",
+      "paragraphEnd": "P011",
+      "quote": "So high electronegativity, an atom with high electronegativity is an electron acceptor, and then low would be a donor.",
+      "charStart": 3700,
+      "charEnd": 3818,
+      "sourceFragmentIds": [
+        "chem-09-0096",
+        "chem-09-0097",
+        "chem-09-0098"
+      ],
+      "sourceStartMs": 315640,
+      "availableAtMs": 324510,
+      "captionEnvelopeMs": 8870,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 6440,
+      "note": "Develop the preceding Cue into an acceptor/donor contrast; an UPDATE would be reasonable."
+    },
+    {
+      "id": "A04",
+      "paragraphStart": "P019",
+      "paragraphEnd": "P019",
+      "quote": "Since chlorine is so electronegative, when bonded to carbon it pulls electrons away from the carbon atom. And so it makes the carbon to which it is attached much more reactive toward other molecules.",
+      "charStart": 6830,
+      "charEnd": 7029,
+      "sourceFragmentIds": [
+        "chem-09-0174",
+        "chem-09-0175",
+        "chem-09-0176",
+        "chem-09-0177",
+        "chem-09-0178"
+      ],
+      "sourceStartMs": 539380,
+      "availableAtMs": 552020,
+      "captionEnvelopeMs": 12640,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 9870,
+      "note": "Connect electronegativity to the example without requiring the molecular drawing."
+    },
+    {
+      "id": "A05",
+      "paragraphStart": "P025",
+      "paragraphEnd": "P025",
+      "quote": "And when you make something electron poor, so by replacing C-H with C-F, that can make a potential drug molecule electron poor. And what this does often is make it harder to oxidize the molecule.",
+      "charStart": 9297,
+      "charEnd": 9492,
+      "sourceFragmentIds": [
+        "chem-09-0233",
+        "chem-09-0234",
+        "chem-09-0235",
+        "chem-09-0236",
+        "chem-09-0237"
+      ],
+      "sourceStartMs": 714560,
+      "availableAtMs": 731060,
+      "captionEnvelopeMs": 16500,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 12850,
+      "note": "Keep the causal step linking substitution and oxidation."
+    },
+    {
+      "id": "A06",
+      "paragraphStart": "P026",
+      "paragraphEnd": "P026",
+      "quote": "And so if you make it harder to oxidize, that makes the drug more stable in your body.",
+      "charStart": 9843,
+      "charEnd": 9929,
+      "sourceFragmentIds": [
+        "chem-09-0245",
+        "chem-09-0246"
+      ],
+      "sourceStartMs": 752780,
+      "availableAtMs": 758780,
+      "captionEnvelopeMs": 6000,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 3280,
+      "note": "The practical consequence of the preceding chemical explanation. Context-sensitive follow-on Cue."
+    },
+    {
+      "id": "A07",
+      "paragraphStart": "P030",
+      "paragraphEnd": "P030",
+      "quote": "So the atomic radius is defined by the value of r that has about 90% of the electron density.",
+      "charStart": 11226,
+      "charEnd": 11319,
+      "sourceFragmentIds": [
+        "chem-09-0279",
+        "chem-09-0280"
+      ],
+      "sourceStartMs": 846090,
+      "availableAtMs": 854590,
+      "captionEnvelopeMs": 8500,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 4960,
+      "note": "A new definition at the topic change."
+    },
+    {
+      "id": "A08",
+      "paragraphStart": "P031",
+      "paragraphEnd": "P031",
+      "quote": "Across the periodic table, Z effective matters. Down the periodic table, n, or the principle quantum number, matters.",
+      "charStart": 11749,
+      "charEnd": 11866,
+      "sourceFragmentIds": [
+        "chem-09-0292",
+        "chem-09-0293",
+        "chem-09-0294"
+      ],
+      "sourceStartMs": 881740,
+      "availableAtMs": 888650,
+      "captionEnvelopeMs": 6910,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 4340,
+      "note": "Contrast the two explanatory variables. Caption spelling is retained."
+    },
+    {
+      "id": "A09",
+      "paragraphStart": "P033",
+      "paragraphEnd": "P033",
+      "quote": "And then it isn't until you go down the periodic table when n increases that you start to see the radius increase.",
+      "charStart": 12489,
+      "charEnd": 12603,
+      "sourceFragmentIds": [
+        "chem-09-0310",
+        "chem-09-0311"
+      ],
+      "sourceStartMs": 931590,
+      "availableAtMs": 940690,
+      "captionEnvelopeMs": 9100,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 5000,
+      "note": "State the direction of the size trend explicitly."
+    },
+    {
+      "id": "A10",
+      "paragraphStart": "P037",
+      "paragraphEnd": "P037",
+      "quote": "And so if we have two kinds of ions, we can have cations, which are positively charged. And so a positively charged ion will have lost an electron, and so it's going to be smaller than its parent.",
+      "charStart": 14238,
+      "charEnd": 14434,
+      "sourceFragmentIds": [
+        "chem-09-0355",
+        "chem-09-0356",
+        "chem-09-0357",
+        "chem-09-0358"
+      ],
+      "sourceStartMs": 1038420,
+      "availableAtMs": 1051520,
+      "captionEnvelopeMs": 13100,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 10110,
+      "note": "Definition plus size consequence, without a diagram-dependent pronoun."
+    },
+    {
+      "id": "A11",
+      "paragraphStart": "P038",
+      "paragraphEnd": "P038",
+      "quote": "Anions-- negatively charged ions. So they're gaining an electron, and their radius is larger than their parent.",
+      "charStart": 14722,
+      "charEnd": 14833,
+      "sourceFragmentIds": [
+        "chem-09-0367",
+        "chem-09-0368",
+        "chem-09-0369"
+      ],
+      "sourceStartMs": 1071930,
+      "availableAtMs": 1079510,
+      "captionEnvelopeMs": 7580,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 5030,
+      "note": "The contrasting ion type and size consequence."
+    },
+    {
+      "id": "A12",
+      "paragraphStart": "P039",
+      "paragraphEnd": "P039",
+      "quote": "The ionic radius also will increase when we're going down a group, so when n is increasing, so from lithium to sodium.",
+      "charStart": 15000,
+      "charEnd": 15118,
+      "sourceFragmentIds": [
+        "chem-09-0374",
+        "chem-09-0375",
+        "chem-09-0376"
+      ],
+      "sourceStartMs": 1089850,
+      "availableAtMs": 1098720,
+      "captionEnvelopeMs": 8870,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 4860,
+      "note": "Extend the size trend to ions."
+    },
+    {
+      "id": "A13",
+      "paragraphStart": "P041",
+      "paragraphEnd": "P041",
+      "quote": "And you want ion channels. They regulate the influx of ions into the cell and allow for really rapid responses, which is also really important. And amazingly, they're highly selective for certain ions.",
+      "charStart": 15891,
+      "charEnd": 16092,
+      "sourceFragmentIds": [
+        "chem-09-0395",
+        "chem-09-0396",
+        "chem-09-0397",
+        "chem-09-0398",
+        "chem-09-0399"
+      ],
+      "sourceStartMs": 1155510,
+      "availableAtMs": 1170750,
+      "captionEnvelopeMs": 15240,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 13630,
+      "note": "Identify the channels' function and selectivity while retaining the subject."
+    },
+    {
+      "id": "A14",
+      "paragraphStart": "P048",
+      "paragraphEnd": "P049",
+      "quote": "There are things that can have the same electron configuration. Those are called isoelectronic, and let's think about those. They don't necessarily have the same size, but they have the same electron configuration.",
+      "charStart": 18507,
+      "charEnd": 18721,
+      "sourceFragmentIds": [
+        "chem-09-0463",
+        "chem-09-0464",
+        "chem-09-0465",
+        "chem-09-0466",
+        "chem-09-0467"
+      ],
+      "sourceStartMs": 1397870,
+      "availableAtMs": 1412400,
+      "captionEnvelopeMs": 14530,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 12070,
+      "note": "Definition and crucial distinction; crosses a reading-paragraph boundary."
+    },
+    {
+      "id": "A15",
+      "paragraphStart": "P057",
+      "paragraphEnd": "P057",
+      "quote": "The electrons that participate in a chemical bond are called valence electrons. These are electrons that are found in an atom's outermost shell.",
+      "charStart": 21597,
+      "charEnd": 21741,
+      "sourceFragmentIds": [
+        "chem-09-0549",
+        "chem-09-0550",
+        "chem-09-0551",
+        "chem-09-0552"
+      ],
+      "sourceStartMs": 1657079,
+      "availableAtMs": 1667450,
+      "captionEnvelopeMs": 10371,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 6920,
+      "note": "Self-contained definition from the embedded teaching segment."
+    },
+    {
+      "id": "A16",
+      "paragraphStart": "P058",
+      "paragraphEnd": "P058",
+      "quote": "An ionic bond is formed when one of the atoms will lose its electron to the other atom. This results in a positively charged ion called a cation and a negatively charged ion called an anion. Positive and negative attract, and the result is an ionic bond.",
+      "charStart": 21825,
+      "charEnd": 22079,
+      "sourceFragmentIds": [
+        "chem-09-0555",
+        "chem-09-0556",
+        "chem-09-0557",
+        "chem-09-0558",
+        "chem-09-0559",
+        "chem-09-0560"
+      ],
+      "sourceStartMs": 1676646,
+      "availableAtMs": 1696038,
+      "captionEnvelopeMs": 19392,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 16404,
+      "note": "Keep transfer, resulting ions and attraction together."
+    },
+    {
+      "id": "A17",
+      "paragraphStart": "P058",
+      "paragraphEnd": "P058",
+      "quote": "Covalent chemical bonds involve the sharing of a pair of valence electrons by two atoms.",
+      "charStart": 22080,
+      "charEnd": 22168,
+      "sourceFragmentIds": [
+        "chem-09-0561",
+        "chem-09-0562"
+      ],
+      "sourceStartMs": 1702330,
+      "availableAtMs": 1709361,
+      "captionEnvelopeMs": 7031,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 4331,
+      "note": "The contrasting bond definition."
+    },
+    {
+      "id": "A18",
+      "paragraphStart": "P059",
+      "paragraphEnd": "P059",
+      "quote": "There is also what is called polar covalent bonds. These are covalent bonds in which the sharing of the electron pair is unequal. The result is a bond where the electron pair is displaced toward the more electronegative atom.",
+      "charStart": 22169,
+      "charEnd": 22394,
+      "sourceFragmentIds": [
+        "chem-09-0563",
+        "chem-09-0564",
+        "chem-09-0565",
+        "chem-09-0566",
+        "chem-09-0567"
+      ],
+      "sourceStartMs": 1709361,
+      "availableAtMs": 1723872,
+      "captionEnvelopeMs": 14511,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 11408,
+      "note": "Retain both unequal sharing and its direction."
+    },
+    {
+      "id": "A19",
+      "paragraphStart": "P061",
+      "paragraphEnd": "P061",
+      "quote": "So ionic bonds is the transfer of an electron, as you saw, and then the generation of a cation and an anion that are attracted to each other due to the charge.",
+      "charStart": 22942,
+      "charEnd": 23101,
+      "sourceFragmentIds": [
+        "chem-09-0582",
+        "chem-09-0583",
+        "chem-09-0584"
+      ],
+      "sourceStartMs": 1781240,
+      "availableAtMs": 1794490,
+      "captionEnvelopeMs": 13250,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7320,
+      "note": "Return to ionic bonding after the overview of several bond types; useful topic reactivation rather than an immediate duplicate."
+    },
+    {
+      "id": "A20",
+      "paragraphStart": "P062",
+      "paragraphEnd": "P062",
+      "quote": "So you have Na going to Na plus plus an electron, and so here, you're talking about a process where the energy is going to be equal to the ionization energy again.",
+      "charStart": 23754,
+      "charEnd": 23917,
+      "sourceFragmentIds": [
+        "chem-09-0599",
+        "chem-09-0600",
+        "chem-09-0601",
+        "chem-09-0602"
+      ],
+      "sourceStartMs": 1838620,
+      "availableAtMs": 1850900,
+      "captionEnvelopeMs": 12280,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7960,
+      "note": "Anchor the first energy-accounting step to the named species."
+    },
+    {
+      "id": "A21",
+      "paragraphStart": "P063",
+      "paragraphEnd": "P063",
+      "quote": "And then we're talking about neutral CL, neutral chlorine, going to CL minus, and so it's gaining an electron. So here, the process you're talking about is the electron affinity, and so the energy change here is equal to the negative electron affinity, which is minus 349 in this case.",
+      "charStart": 24059,
+      "charEnd": 24344,
+      "sourceFragmentIds": [
+        "chem-09-0606",
+        "chem-09-0607",
+        "chem-09-0608",
+        "chem-09-0609",
+        "chem-09-0610",
+        "chem-09-0611"
+      ],
+      "sourceStartMs": 1862350,
+      "availableAtMs": 1886520,
+      "captionEnvelopeMs": 24170,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 19910,
+      "note": "Retain the reaction context and sign convention. The caption omits units in this quote, so numerical completeness is limited."
+    },
+    {
+      "id": "A22",
+      "paragraphStart": "P065",
+      "paragraphEnd": "P065",
+      "quote": "It's plus, and so now, we're seeing that the formation of these ions from their neutral atoms has this positive value, which means it requires energy.",
+      "charStart": 24867,
+      "charEnd": 25017,
+      "sourceFragmentIds": [
+        "chem-09-0625",
+        "chem-09-0626",
+        "chem-09-0627"
+      ],
+      "sourceStartMs": 1926700,
+      "availableAtMs": 1936350,
+      "captionEnvelopeMs": 9650,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 6070,
+      "note": "The surprising intermediate result before including ion attraction; assumes the preceding sodium/chlorine context."
+    },
+    {
+      "id": "A23",
+      "paragraphStart": "P066",
+      "paragraphEnd": "P066",
+      "quote": "You need to form your cations and anions, but then you have energy of them coming together. So they're attracted to each other, and that's a really important part of forming the bond.",
+      "charStart": 25208,
+      "charEnd": 25391,
+      "sourceFragmentIds": [
+        "chem-09-0632",
+        "chem-09-0633",
+        "chem-09-0634",
+        "chem-09-0635"
+      ],
+      "sourceStartMs": 1952190,
+      "availableAtMs": 1962980,
+      "captionEnvelopeMs": 10790,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7950,
+      "note": "Supply the missing term in the previous argument."
+    },
+    {
+      "id": "A24",
+      "paragraphStart": "P067",
+      "paragraphEnd": "P067",
+      "quote": "So the net energy here is in favor of forming NaCL. We have a decrease in energy. This is a stable compound, so let's look at where this number comes from.",
+      "charStart": 25714,
+      "charEnd": 25869,
+      "sourceFragmentIds": [
+        "chem-09-0644",
+        "chem-09-0645",
+        "chem-09-0646",
+        "chem-09-0647"
+      ],
+      "sourceStartMs": 1992080,
+      "availableAtMs": 2006240,
+      "captionEnvelopeMs": 14160,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7730,
+      "note": "Close the worked example with its energetic conclusion; preserves the lecturer's transition words."
+    },
+    {
+      "id": "A25",
+      "paragraphStart": "P073",
+      "paragraphEnd": "P073",
+      "quote": "So it seems like this is more favorable, like that's a stronger bond, a stronger interaction; but really, if there's some repulsion, that's overestimated.",
+      "charStart": 28814,
+      "charEnd": 28968,
+      "sourceFragmentIds": [
+        "chem-09-0719",
+        "chem-09-0720",
+        "chem-09-0721",
+        "chem-09-0722"
+      ],
+      "sourceStartMs": 2211310,
+      "availableAtMs": 2220830,
+      "captionEnvelopeMs": 9520,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 7280,
+      "note": "Qualify the simple model's bond-strength prediction. Context-dependent; worth comparing with a longer user selection."
+    },
+    {
+      "id": "A26",
+      "paragraphStart": "P077",
+      "paragraphEnd": "P077",
+      "quote": "So a chemical bond is an arrangement of atoms so that they come together in such a way that they're lower in energy than they were when they were apart. So they're more stable together than they were apart, and that's a chemical bond.",
+      "charStart": 30123,
+      "charEnd": 30357,
+      "sourceFragmentIds": [
+        "chem-09-0751",
+        "chem-09-0752",
+        "chem-09-0753",
+        "chem-09-0754",
+        "chem-09-0755",
+        "chem-09-0756"
+      ],
+      "sourceStartMs": 2323930,
+      "availableAtMs": 2338910,
+      "captionEnvelopeMs": 14980,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 11220,
+      "note": "Re-establish the energy definition when the source resumes teaching after its class-ending transition."
+    },
+    {
+      "id": "A27",
+      "paragraphStart": "P084",
+      "paragraphEnd": "P084",
+      "quote": "So this distance here that has this minimum energy-- OK, so we have this minimum energy here, and that's the distance at which you have this really favorable interaction, this bond length.",
+      "charStart": 32859,
+      "charEnd": 33047,
+      "sourceFragmentIds": [
+        "chem-09-0816",
+        "chem-09-0817",
+        "chem-09-0818",
+        "chem-09-0819"
+      ],
+      "sourceStartMs": 2515180,
+      "availableAtMs": 2531770,
+      "captionEnvelopeMs": 16590,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 9000,
+      "note": "Connect the energy minimum to bond length. Marked diagram-dependent rather than rewritten."
+    },
+    {
+      "id": "A28",
+      "paragraphStart": "P085",
+      "paragraphEnd": "P085",
+      "quote": "So this is the dissociation energy, or Delta E sub d. Sometimes, it's just called big capital D in your textbook. So this is the energy that's needed to dissociate those atoms. So if the atoms come together, and they're lower in energy, if you then want to break them apart, you need to put energy in so that they can be broken apart.",
+      "charStart": 33196,
+      "charEnd": 33530,
+      "sourceFragmentIds": [
+        "chem-09-0823",
+        "chem-09-0824",
+        "chem-09-0825",
+        "chem-09-0826",
+        "chem-09-0827",
+        "chem-09-0828",
+        "chem-09-0829"
+      ],
+      "sourceStartMs": 2541840,
+      "availableAtMs": 2565250,
+      "captionEnvelopeMs": 23410,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 17210,
+      "note": "Keep the term and physical meaning together; this is deliberately not shortened to fit today's candidate limit."
+    },
+    {
+      "id": "A29",
+      "paragraphStart": "P087",
+      "paragraphEnd": "P087",
+      "quote": "And if you wanted to break that bond, you would need to put in energy, so dissociation energy is positive. It's the energy you need to put in to break those bonds.",
+      "charStart": 34028,
+      "charEnd": 34191,
+      "sourceFragmentIds": [
+        "chem-09-0841",
+        "chem-09-0842",
+        "chem-09-0843",
+        "chem-09-0844"
+      ],
+      "sourceStartMs": 2601410,
+      "availableAtMs": 2613110,
+      "captionEnvelopeMs": 11700,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 9620,
+      "note": "A concise clarification of the sign convention; an UPDATE of the preceding idea would be reasonable."
+    },
+    {
+      "id": "A30",
+      "paragraphStart": "P089",
+      "paragraphEnd": "P089",
+      "quote": "So nitrogen is going to be stronger here, and people knew that because it's a deeper well. So you go way farther down, there's more stabilization. It's a lower energy, a lower negative value of energy, so that means it's going to have a greater dissociation energy.",
+      "charStart": 34959,
+      "charEnd": 35224,
+      "sourceFragmentIds": [
+        "chem-09-0865",
+        "chem-09-0866",
+        "chem-09-0867",
+        "chem-09-0868",
+        "chem-09-0869"
+      ],
+      "sourceStartMs": 2671780,
+      "availableAtMs": 2690060,
+      "captionEnvelopeMs": 18280,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 15620,
+      "note": "Connect a deeper potential well with greater dissociation energy. The comparison refers to a plot."
+    },
+    {
+      "id": "A31",
+      "paragraphStart": "P094",
+      "paragraphEnd": "P094",
+      "quote": "So in general, a bond between two atoms is considered a polar covalent bond when the difference in electric negativity between the atoms is greater than 0.4 and less than 1.7, and that's Linus Pauling's scale and works quite well.",
+      "charStart": 37418,
+      "charEnd": 37648,
+      "sourceFragmentIds": [
+        "chem-09-0921",
+        "chem-09-0922",
+        "chem-09-0923",
+        "chem-09-0924",
+        "chem-09-0925"
+      ],
+      "sourceStartMs": 2836830,
+      "availableAtMs": 2857380,
+      "captionEnvelopeMs": 20550,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 16240,
+      "note": "Preserve the introductory rule as the lecturer states it, including 'in general'; this is not a universal boundary asserted by the annotator."
+    },
+    {
+      "id": "A32",
+      "paragraphStart": "P096",
+      "paragraphEnd": "P096",
+      "quote": "We're going to talk about shapes of molecules because a polar molecule has to have polar bonds, but also has to have those bonds arranged in such a way that there's a net difference, there's a net dipole, there's a net kind of pulling of those electrons in a different way.",
+      "charStart": 38199,
+      "charEnd": 38472,
+      "sourceFragmentIds": [
+        "chem-09-0939",
+        "chem-09-0940",
+        "chem-09-0941",
+        "chem-09-0942",
+        "chem-09-0943",
+        "chem-09-0944"
+      ],
+      "sourceStartMs": 2895410,
+      "availableAtMs": 2912540,
+      "captionEnvelopeMs": 17130,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 14530,
+      "note": "The key distinction between bond polarity and molecular polarity."
+    },
+    {
+      "id": "A33",
+      "paragraphStart": "P099",
+      "paragraphEnd": "P099",
+      "quote": "Another molecule that also has polar bonds is water. So here, we have polar bonds between the oxygen and the hydrogen, so oxygen and hydrogen, greater than 0.4. But in this case, the shape of water is such that they don't cancel out, and you do have a net dipole.",
+      "charStart": 39373,
+      "charEnd": 39636,
+      "sourceFragmentIds": [
+        "chem-09-0966",
+        "chem-09-0967",
+        "chem-09-0968",
+        "chem-09-0969",
+        "chem-09-0970",
+        "chem-09-0971"
+      ],
+      "sourceStartMs": 2973170,
+      "availableAtMs": 2997690,
+      "captionEnvelopeMs": 24520,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 17310,
+      "note": "A named example of non-cancelling bond dipoles. Stop before the following net-charge wording; source remains unedited."
+    },
+    {
+      "id": "A34",
+      "paragraphStart": "P105",
+      "paragraphEnd": "P105",
+      "quote": "So water likes polar molecules, which makes folic acid water soluble and makes vitamin A fat soluble. It's not very polar, doesn't dissolve very well in water.",
+      "charStart": 41604,
+      "charEnd": 41763,
+      "sourceFragmentIds": [
+        "chem-09-1018",
+        "chem-09-1019",
+        "chem-09-1020",
+        "chem-09-1021"
+      ],
+      "sourceStartMs": 3156940,
+      "availableAtMs": 3170070,
+      "captionEnvelopeMs": 13130,
+      "exactCaptionBoundaries": true,
+      "earliestSelectedCaptionEndAgeMs": 10610,
+      "note": "Final chemistry application: polarity and solubility. Do not select the later supplement-dosing generalizations."
+    }
+  ]
+}
