@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DecisionInput } from './decision-provider';
 import { buildJevRequest, JevDecisionProvider, JEV_ENDPOINT } from './jev-decision-provider';
+import { assertJevContext, JEV_CONTEXT_VERSION } from './jev-context';
 
 const input: DecisionInput = {
   evidence: { version: 1, fragments: [{ id: 'f1', text: 'A list is mutable.', startMs: 0, endMs: 1 }] },
@@ -15,7 +16,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('Jev contract, fake transport only', () => {
   it('labels only arrived evidence and preserves current provenance without inventing evicted source text', () => {
     const currentCue = { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 };
-    const request = buildJevRequest({ ...input, currentCue }, 'jev-latest', 'structured-v2');
+    const request = buildJevRequest({ ...input, currentCue });
     expect(request.body.state).toMatchObject({
       latestInput: input.evidence.fragments[0], backgroundEvidence: [],
       currentCue: { text: 'Earlier point.', sourceFragmentIds: ['f0'], sourceEvidenceStillInWindow: [], completeSourceStillInWindow: false },
@@ -25,18 +26,41 @@ describe('Jev contract, fake transport only', () => {
   });
 
   it('constructs one bounded choice question with no generated-text output path', () => {
-    const request = buildJevRequest(input, 'jev-latest', 'baseline-v1');
+    const request = buildJevRequest(input);
     expect(request.body.model).toBe('jev-latest');
     expect(Object.keys(request.body.questions)).toEqual(['cue']);
     expect(request.body.questions.cue.type).toBe('choice');
-    expect(request.body.questions.cue.instructions).toContain('`evidence.fragments`');
+    expect(request.body.questions.cue.instructions).toContain('`latestInput.text`');
     expect(request.body.questions.cue.criteria.NEW_CUE_0).toContain('`candidates[0].text`');
     expect([...request.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0']);
-    expect(request.body.state).toEqual(input);
-    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } }, 'jev-latest', 'baseline-v1');
+    expect(request.body.state.currentCue).toBeNull();
+    expect(request.body.state.candidates[0]?.text).toBe(input.candidates[0]!.text);
+    expect(request.options.get('NEW_CUE_0')).toEqual({ action: 'NEW_CUE', candidateId: '["f1"]' });
+    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } });
     expect([...withCurrent.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0', 'UPDATE_CURRENT_0']);
     expect(withCurrent.options.get('UPDATE_CURRENT_0')).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
     expect(withCurrent.body.questions.cue.criteria.UPDATE_CURRENT_0).toContain('does not append');
+    const empty = buildJevRequest({ evidence: { version: 0, fragments: [] }, candidates: [], currentCue: null });
+    for (const { body } of [request, withCurrent, empty]) {
+      const question = body.questions.cue;
+      for (const text of [question.instructions, ...Object.values(question.criteria)]) {
+        for (const [, path] of text.matchAll(/`([^`]+)`/g)) {
+          let value: unknown = body.state;
+          for (const key of path!.replace(/\[(\d+)\]/g, '.$1').split('.')) {
+            value = value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
+          }
+          expect(value, `Unresolved state path: ${path}`).not.toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it('uses only V3 and rejects stale or invalid environment configuration', () => {
+    expect(JEV_CONTEXT_VERSION).toBe('structured-v3');
+    for (const value of [undefined, '', ' ', 'structured-v3']) expect(() => assertJevContext(value)).not.toThrow();
+    for (const value of ['baseline-v1', 'structured-v2', 'typo']) {
+      expect(() => assertJevContext(value)).toThrow('Only structured-v3 is supported');
+    }
   });
 
   it('sends the verified endpoint, Bearer authentication and selectable model, and maps a choice to a supplied ID', async () => {

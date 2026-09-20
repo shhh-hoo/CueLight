@@ -1,46 +1,40 @@
-# CueLight continuation checkpoint
+# CueLight continuation state
 
-This commit preserves unfinished work for continuation in the **CueLight** project. It is not a completed product-validation claim. Main at the start was `92109f0`; earlier local checkpoints were `61c21ed` and `c5d71bf`. The current feature branch is `feat/long-replay-jev-context`.
+Continued from checkpoint `b793fec` on `feat/long-replay-jev-context`. The current implementation uses **structured-v3 only**. Earlier context implementations, runtime selection branches and the replay `--context` option have been removed.
 
-Read [the actual evaluation summary](EVALUATION-SUMMARY.md), [segment definitions](segments.json), and the individual Markdown/JSON/JSONL traces in `runs/`. Original user and assistant references are separately retained under `materials/`. Do not repeat the whole paid baseline without a specific reason.
+## Current implementation
 
-Always use the official [typesafe-ai skill](https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md) and follow the repository Product Validation Policy. The skill's main file was read; review of the current State, Choice, HTTP API and source-span cookbook pages was interrupted. Finish that review before further Jev changes. In particular, verify whether v2's plain field references need backticked paths; their effect is not yet established. Preserve the recorded experimental context/version if a new variant is introduced.
+- V3 preserves the structured state and Cue decision semantics, with explicit backticked paths following the current TypeSafe skill/docs. References account for a missing current Cue; candidate text is still copied verbatim through bounded Choice options.
+- Existing Engine, evidence/candidate rules, bounded append-only response acceptance, coalescing, reset/disposal/session isolation and replay tooling remain in place.
+- Browser-free replay records provenance, exact requests, model/context/code identity and separate provider/publication timing. Archived-prefix reconstruction uses recorded local decisions strictly before a range; it does not invoke an older context implementation.
+- Remove stale `JEV_CONTEXT_VERSION` settings from local configuration. Unset/empty or `structured-v3` is accepted; other values fail explicitly. No selector is needed for V3.
+- The TypeSafe skill and relevant live State, primitives/field references, Choice, HTTP API and source-span cookbook review is complete.
 
-Latest design: https://docs.google.com/document/d/1rTZiWCVA_7uPSBgMYyFycpPqJ8313Xu7knKF3ZswNcs
+## Evidence and outputs
 
-## Completed
+The [historical evaluation summary](EVALUATION-SUMMARY.md) preserves 940 real Jev decisions, 3 fallbacks and the observed successes/failures. The original source, separate user/assistant annotations and [segments](segments.json) remain versioned. No new live calls, long replay or context comparison were run to adopt V3.
 
-- Browser-free replay using the real Cue Engine, with original caption boundaries, no future text/labels, immutable run output names, source provenance and separate API/Cue-state timing.
-- One 594-caption baseline through 30:22.990, a 21-caption smoke, five paired segment comparisons and one paced probe: 940 real Jev calls in total; 3 fallbacks. No new calls during packaging.
-- Bounded append-only response acceptance, one request in flight, coalesced subsequent evidence, and reset/disposal isolation. Focused tests reproduce the old progress failure and verify the new engineering rule.
-- Experimental structured-v2 context. Results are mixed; baseline-v1 remains default. No candidate/window changes.
-- Latest complete checks passed: TypeScript, production build, 77 unit/contract/integration tests and 14 Playwright tests.
+The 39 generated Markdown/JSON/JSONL run files are no longer tracked in the current tree. Their contents remain unchanged in local `evaluation/runs/`, the handoff package and [checkpoint b793fec](https://github.com/shhh-hoo/CueLight/tree/b793fec6972c290bc28a5471144be6c7f7783f68/evaluation/runs). `/evaluation/runs/` is ignored; new replay outputs normally go to the already-ignored `artifacts/` directory. This does not ignore source materials, tests, summaries or segment definitions.
 
-## Still unfinished
+## Run and verify
 
-1. Finish TypeSafe skill/live-document review and code review. No independent review was performed.
-2. Reassess the streaming guard's limits: five-second age/source bounds do not recognize a semantic correction or topic switch inside that interval. The real-paced probe had no overlapping arrival during an active request; only controlled tests exercised overlap.
-3. Finalize the product report and README. The README still has stale initial-slice claims about no real calls and discarding all advanced evidence. The included evaluation summary is interim.
-4. Decide whether to compress redundant raw traces before final PR review without losing source/context/run reproducibility.
-5. Finish the original PR delivery if still requested. No PR was created, merged or deployed at this checkpoint. Do not merge or deploy automatically.
-
-Overall improvement has not been demonstrated: v2 recovers useful isoelectronic/bond content but misses the ion-radius segment and increases some display churn. First-display values are engine-publication proxies, not browser paint or speech latency. No revised full-length run, Speechmatics integration or OpenAI refinement has been performed.
-
-## Run
-
-Use Node 24+ and install dependencies with `npm ci`. The previous machine used Node 26.8.1.
+Use Node 24+ and `npm ci`. See the [README](../README.md) for browser and optional live usage.
 
 ```sh
-# Offline plumbing only; no semantic inference:
+# Offline plumbing only; no model calls.
 npm run replay -- --to 65000 --out artifacts/offline-check
 
-# Explicit paid call with existing authorized configuration:
-npm run replay -- --live --env-dir /path/to/existing/config --context baseline-v1 --to 65000 --out artifacts/new-smoke
-
-# Small contextual comparison, only when there is a concrete reason to rerun:
-npm run replay -- --live --env-dir /path/to/existing/config --context structured-v2 --prefix-run evaluation/runs/baseline-long.json --from 1381610 --to 1432420 --out artifacts/new-check
-
+# Full deterministic verification; fake models only.
 npm run check
 ```
 
-No credentials are committed. A completed run with a fallback exits nonzero after writing its report; inspect `interrupted` and `accepted`. `--mode paced` uses original caption end times at 1×; semantic replay waits for each response. They do not measure the same thing. Future speech should use Speechmatics-native Final boundaries, with no preemptive grouper/VAD/repair; future OpenAI must not block initial Cue display.
+The tests protect V3 state references/action mapping, configuration errors, provenance, future-text/annotation exclusion, immutable outputs and existing Engine/HTTP/browser contracts. Test outputs remain ignored. The final PR and its CI checks carry the delivery verification result.
+
+## Remaining product questions
+
+- V3 is the current context; no new semantic-quality claim is made from the historical evaluations or deterministic tests.
+- The five-second streaming bounds permit progress but cannot detect a semantic correction, invalidation or topic change inside that interval. The recorded paced run had no overlap; controlled tests establish overlap progress.
+- First-display values are Engine publication proxies. Browser paint, speech completion, ASR finalization, Speechmatics/refinement latency and perceived reading latency remain unmeasured.
+- Selection quality, density and reading stability still need product learning. Speechmatics integration, OpenAI refinement and semantic freshness redesign remain future work.
+
+Delivery uses the existing feature branch and a PR against main. Do not merge or deploy automatically. Preserve unrelated user changes and the read-only project mirror/handoff sources.

@@ -1,7 +1,7 @@
 // Server-only: do not import this module from App or any browser entrypoint.
 import type { CueDecisionProvider, DecisionInput } from './decision-provider.ts';
 import { QUIET, type CueDecision } from './types.ts';
-import { buildJevRequest, type JevContextVersion } from './jev-context.ts';
+import { buildJevRequest } from './jev-context.ts';
 export { buildJevRequest } from './jev-context.ts';
 
 export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
@@ -37,7 +37,6 @@ export class JevDecisionProvider implements CueDecisionProvider {
   constructor(private readonly options: {
     apiKey: string;
     model?: string;
-    contextVersion?: JevContextVersion;
     transport?: typeof fetch;
     signal?: AbortSignal;
     onError?: (message: string) => void;
@@ -54,7 +53,7 @@ export class JevDecisionProvider implements CueDecisionProvider {
     try {
       if (this.options.signal?.aborted) throw new Error('Jev request cancelled.');
       if (!this.options.apiKey.trim()) throw new Error('Missing TypeSafe API key.');
-      const request = buildJevRequest(input, this.options.model, this.options.contextVersion);
+      const request = buildJevRequest(input, this.options.model);
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           reject(new Error('Jev request timed out.'));

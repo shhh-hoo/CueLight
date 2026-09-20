@@ -1,14 +1,14 @@
 import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { performance } from 'node:perf_hooks';
 import { loadEnv } from 'vite';
 import { CueEngine, type DecisionRecord } from '../src/cue/cue-engine';
 import { JevDecisionProvider } from '../src/decision/jev-decision-provider';
-import { buildJevRequest, type JevContextVersion } from '../src/decision/jev-context';
+import { assertJevContext, buildJevRequest, JEV_CONTEXT_VERSION } from '../src/decision/jev-context';
 import type { DecisionInput } from '../src/decision/decision-provider';
 import type { CueDecision } from '../src/decision/types';
 import type { Cue } from '../src/cue/types';
@@ -25,19 +25,27 @@ const stamp = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, '0')
 const quote = (text: string) => text.split('\n').map(line => `> ${line}`).join('\n');
 const wait = (ms: number) => new Promise<void>(yes => setTimeout(yes, ms));
 
+// Stream the diff: removing generated traces can exceed execFileSync's buffer.
+function hashWorktreeDiff(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const diff = spawn('git', ['diff', 'HEAD'], { stdio: ['ignore', 'pipe', 'inherit'] });
+    diff.stdout.on('data', chunk => hash.update(chunk));
+    diff.on('error', reject);
+    diff.on('close', code => code === 0 ? resolve(hash.digest('hex')) : reject(new Error('Unable to read worktree diff.')));
+  });
+}
+
 export async function main(args: string[]) {
   const { values } = parseArgs({ args, options: {
     live: { type: 'boolean', default: false },
     input: { type: 'string', default: 'evaluation/materials/transcript-map.json' },
     out: { type: 'string', default: 'artifacts/replay' },
     from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822990' },
-    context: { type: 'string', default: 'baseline-v1' },
     mode: { type: 'string', default: 'semantic' },
     'env-dir': { type: 'string', default: '.' },
     'prefix-run': { type: 'string' },
   } });
-  if (!['baseline-v1', 'structured-v2'].includes(values.context)) throw new Error('Unknown context version.');
-  const contextVersion = values.context as JevContextVersion;
   const from = Number(values.from), to = Number(values.to);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from || !['semantic', 'paced'].includes(values.mode)) {
     throw new Error('Invalid range or mode.');
@@ -49,6 +57,7 @@ export async function main(args: string[]) {
     .map(({ id, text, startMs, endMs }) => ({ id, text, startMs, endMs }));
   if (!fragments.length) throw new Error('Empty range.');
   const env = loadEnv('development', resolve(values['env-dir']), ['TYPESAFE_', 'JEV_']);
+  assertJevContext(env.JEV_CONTEXT_VERSION);
   const apiKey = env.TYPESAFE_API_KEY ?? '';
   if (values.live && !apiKey.trim()) throw new Error('Missing existing configuration.');
   const out = resolve(values.out);
@@ -62,10 +71,10 @@ export async function main(args: string[]) {
   let priming = false;
   const metadata = {
     createdAt: new Date().toISOString(), codeCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-    worktreeDiffSha256: sha(execFileSync('git', ['diff', 'HEAD'])),
+    worktreeDiffSha256: await hashWorktreeDiff(),
     engineSha256: sha(readFileSync('src/cue/cue-engine.ts')),
     contextSha256: sha(readFileSync('src/decision/jev-context.ts')),
-    contextVersion, inputSha256: sha(raw), captionSha256: corpus.rawSha256,
+    contextVersion: JEV_CONTEXT_VERSION, inputSha256: sha(raw), captionSha256: corpus.rawSha256,
     sourceUrl: corpus.sourceUrl, modelRequested: values.live ? env.JEV_MODEL || 'jev-latest' : 'offline-QUIET',
     live: values.live, mode: values.mode, from, to, fragmentCount: fragments.length,
     prefixRunSha256: prefixRaw ? sha(prefixRaw) : null,
@@ -84,7 +93,7 @@ export async function main(args: string[]) {
   let wireModel: string | undefined;
   let wireUsage: unknown;
   const jev = new JevDecisionProvider({
-    apiKey, model: env.JEV_MODEL, contextVersion,
+    apiKey, model: env.JEV_MODEL,
     onError: message => { providerFailure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.' ? message : 'Jev returned no usable decision.'; },
     transport: async (url, init) => {
       const response = await fetch(url, init);
@@ -108,7 +117,7 @@ export async function main(args: string[]) {
     const row = active;
     rows.push(row);
     appendFileSync(`${out}.jsonl`, JSON.stringify({ request: { index: row.index,
-      body: buildJevRequest(input, env.JEV_MODEL, contextVersion).body } }) + '\n');
+      body: buildJevRequest(input, env.JEV_MODEL).body } }) + '\n');
     providerFailure = undefined; wireModel = undefined; wireUsage = undefined;
     const result = values.live ? await jev.decide(input) : { action: 'QUIET' } as const;
     row.returnedAtMs = now(); row.providerDurationMs = row.returnedAtMs - row.requestedAtMs;

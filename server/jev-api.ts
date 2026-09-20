@@ -1,11 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { JevDecisionProvider } from '../src/decision/jev-decision-provider.ts';
-import type { JevContextVersion } from '../src/decision/jev-context.ts';
 import { validateInput } from './validate-input.ts';
 
 export const MAX_REQUEST_BYTES = 2_000_000;
-type Options = { apiKey?: string; model?: string; contextVersion?: JevContextVersion; transport?: typeof fetch };
+type Options = { apiKey?: string; model?: string; transport?: typeof fetch };
 
 function reply(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -62,7 +61,7 @@ export function createJevMiddleware(options: Options) {
         if (controller.signal.aborted) return;
         let failure: string | null = null;
         const provider = new JevDecisionProvider({
-          apiKey: options.apiKey!, model: options.model, contextVersion: options.contextVersion, transport: options.transport, signal: controller.signal,
+          apiKey: options.apiKey!, model: options.model, transport: options.transport, signal: controller.signal,
           onError(message) {
             // Do not reflect arbitrary transport exceptions or upstream payloads.
             failure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.'

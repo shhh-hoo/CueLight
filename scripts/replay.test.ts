@@ -18,6 +18,7 @@ it('replays only arrived source text through the engine, without labels/future i
     await main(['--input', input, '--out', out, '--to', '2000']);
     const run = JSON.parse(readFileSync(`${out}.json`, 'utf8'));
     expect(run.summary.accepted).toBe(2);
+    expect(run.metadata.contextVersion).toBe('structured-v3');
     expect(run.rows[0].input.evidence.fragments.map((f: { id: string }) => f.id)).toEqual(['f1']);
     expect(run.rows[1].input.evidence.fragments.map((f: { id: string }) => f.id)).toEqual(['f1', 'f2']);
     const trace = readFileSync(`${out}.jsonl`, 'utf8');
@@ -25,5 +26,6 @@ it('replays only arrived source text through the engine, without labels/future i
     expect(trace).not.toContain('NEVER SEND THIS LABEL');
     expect(fetchSpy).not.toHaveBeenCalled();
     await expect(main(['--input', input, '--out', out, '--to', '2000'])).rejects.toThrow('immutable');
+    await expect(main(['--context', 'baseline-v1'])).rejects.toThrow('Unknown option');
   } finally { log.mockRestore(); fetchSpy.mockRestore(); rmSync(dir, { recursive: true, force: true }); }
 });

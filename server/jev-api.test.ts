@@ -79,7 +79,7 @@ describe('real local HTTP bridge with fake upstream Jev', () => {
     const transport = vi.fn<typeof fetch>().mockImplementation(async (_path, init) => {
       const request = JSON.parse(init!.body as string);
       const state = request.state;
-      const latest = state.evidence.fragments.at(-1).id;
+      const latest = state.latestInput.id;
       const action = latest === 'science-2' || latest === 'science-5' ? 'NEW_CUE' : latest === 'science-3' ? 'UPDATE_CURRENT' : 'QUIET';
       const choice = action === 'QUIET' ? 'QUIET' : `${action}_${action === 'UPDATE_CURRENT' ? 1 : 0}`;
       return Response.json({ answers: { cue: { type: 'choice', choice, confidence: 1,

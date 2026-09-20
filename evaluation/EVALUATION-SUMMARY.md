@@ -1,6 +1,6 @@
-# Interim product evaluation — actual observations
+# Historical product evaluation — actual observations
 
-This report packages the observations already made. It does not complete the original delivery or claim overall improvement. Read `HANDOFF.md` for pending TypeSafe review, validation limits and delivery steps.
+This report preserves observations from the earlier baseline/structured-context investigation. The application now uses only **structured-v3**, with explicit backticked state-field references following the current TypeSafe guidance. The TypeSafe skill, State, primitives/field references, Choice, HTTP API and source-span cookbook review is complete. No new paid evaluation was run for V3; these historical results do not establish its semantic quality or overall improvement. See [HANDOFF.md](HANDOFF.md) for the current implementation and remaining product questions.
 
 ## Method and identity
 
@@ -14,7 +14,7 @@ This report packages the observations already made. It does not complete the ori
 
 ## Recorded runs
 
-See the matching `.md`, `.json` and `.jsonl` files under `evaluation/runs/`.
+The matching `.md`, `.json` and `.jsonl` files are preserved in the handoff archive and [checkpoint b793fec](https://github.com/shhh-hoo/CueLight/tree/b793fec6972c290bc28a5471144be6c7f7783f68/evaluation/runs). All 39 generated files were removed from current Git tracking while keeping the local copies unchanged in the ignored `evaluation/runs/` directory. Run names below identify historical artifacts, not selectable contexts in the current application.
 
 | Run | Calls | Applied | Successful QUIET | Fallback | NEW / UPDATE | API p50 / p95 (ms) |
 |---|---:|---:|---:|---:|---:|---:|
@@ -63,7 +63,7 @@ Comparisons are stateful within each segment and begin from the same archived ba
 
 Two check regions were reserved before editing v2 and not used for tuning. Their source text and human references were available earlier; they are not a wholly independent benchmark. They have now been inspected and must not be reused as “unseen” for future tuning claims.
 
-No full revised 30-minute run was performed. **The evidence supports local gains and local regressions, not overall product improvement or generalization.** Baseline remains the current working-tree default. Further TypeSafe skill/API review is explicitly pending.
+No full revised 30-minute run was performed. **The evidence supports local gains and local regressions, not overall product improvement or generalization.** The current implementation uses V3 only; the earlier context implementations and selection options have been removed.
 
 ## Concurrency and timing
 
@@ -77,6 +77,6 @@ Provider time and first engine publication are separately recorded. Browser pain
 
 ## Next decision
 
-Continue diagnosing Jev context/action choice first, beginning with the official skill's state-reference guidance. Some useful definitions already fit available candidates yet are ignored; optional OpenAI refinement cannot fix a Cue that never appears. The candidate-span limitation motivates a later small native Speechmatics Final boundary probe, not preemptive segmentation or ASR infrastructure.
+Future product work should continue investigating Jev selection and reading stability. V3 has completed the field-reference correction, but its product behavior remains unmeasured. These are follow-up questions, not additional paid evaluations in this delivery. Some useful definitions already fit available candidates yet are ignored; optional OpenAI refinement cannot fix a Cue that never appears. The candidate-span limitation motivates a later small native Speechmatics Final boundary probe, not preemptive segmentation or ASR infrastructure.
 
 Keep the user preference disagreements open: examples, classroom questions, reminders and ideal density are not settled. This work does not establish a target Cue count or treat unannotated text as negative labels.
