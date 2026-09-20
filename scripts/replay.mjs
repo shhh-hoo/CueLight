@@ -4,8 +4,10 @@ const server = await createServer({ configFile: false, server: { middlewareMode:
 try {
   const { main } = await server.ssrLoadModule('/scripts/replay.ts');
   await main(process.argv.slice(2));
-} catch {
-  console.error('Replay failed. Check arguments/configuration and the partial trace; no credentials or upstream bodies are logged.');
+} catch (error) {
+  console.error(error instanceof Error && error.message.startsWith('Replay requires --input ')
+    ? error.message
+    : 'Replay failed. Check arguments/configuration and the partial trace; no credentials or upstream bodies are logged.');
   process.exitCode = 1;
 } finally {
   await server.close();

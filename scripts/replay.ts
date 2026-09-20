@@ -39,13 +39,14 @@ function hashWorktreeDiff(): Promise<string> {
 export async function main(args: string[]) {
   const { values } = parseArgs({ args, options: {
     live: { type: 'boolean', default: false },
-    input: { type: 'string', default: 'evaluation/materials/transcript-map.json' },
+    input: { type: 'string' },
     out: { type: 'string', default: 'artifacts/replay' },
     from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822990' },
     mode: { type: 'string', default: 'semantic' },
     'env-dir': { type: 'string', default: '.' },
     'prefix-run': { type: 'string' },
   } });
+  if (!values.input) throw new Error('Replay requires --input /path/to/transcript-map.json. Evaluation materials are stored locally.');
   const from = Number(values.from), to = Number(values.to);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from || !['semantic', 'paced'].includes(values.mode)) {
     throw new Error('Invalid range or mode.');

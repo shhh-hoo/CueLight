@@ -26,6 +26,7 @@ it('replays only arrived source text through the engine, without labels/future i
     expect(trace).not.toContain('NEVER SEND THIS LABEL');
     expect(fetchSpy).not.toHaveBeenCalled();
     await expect(main(['--input', input, '--out', out, '--to', '2000'])).rejects.toThrow('immutable');
+    await expect(main([])).rejects.toThrow('Replay requires --input');
     await expect(main(['--context', 'baseline-v1'])).rejects.toThrow('Unknown option');
   } finally { log.mockRestore(); fetchSpy.mockRestore(); rmSync(dir, { recursive: true, force: true }); }
 });
