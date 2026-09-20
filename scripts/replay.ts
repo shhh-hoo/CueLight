@@ -41,21 +41,22 @@ export async function main(args: string[]) {
     live: { type: 'boolean', default: false },
     input: { type: 'string' },
     out: { type: 'string', default: 'artifacts/replay' },
-    from: { type: 'string', default: '0' }, to: { type: 'string', default: '1822990' },
+    from: { type: 'string', default: '0' }, to: { type: 'string' },
     mode: { type: 'string', default: 'semantic' },
     'env-dir': { type: 'string', default: '.' },
     'prefix-run': { type: 'string' },
   } });
   if (!values.input) throw new Error('Replay requires --input /path/to/transcript-map.json. Evaluation materials are stored locally.');
-  const from = Number(values.from), to = Number(values.to);
+  const raw = readFileSync(resolve(values.input));
+  const corpus = JSON.parse(raw.toString()) as { fragments: EvidenceFragment[]; sourceUrl?: string; rawSha256?: string };
+  // Clean the whole source once so prefix reconstruction uses the same fields as new input.
+  const sourceFragments = corpus.fragments.map(({ id, text, startMs, endMs }) => ({ id, text, startMs, endMs }));
+  const from = Number(values.from), to = values.to === undefined ? sourceFragments.at(-1)?.endMs ?? 0 : Number(values.to);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from || !['semantic', 'paced'].includes(values.mode)) {
     throw new Error('Invalid range or mode.');
   }
-  const raw = readFileSync(resolve(values.input));
-  const corpus = JSON.parse(raw.toString()) as { fragments: EvidenceFragment[]; sourceUrl?: string; rawSha256?: string };
   // Original caption boundaries only. Never pass paragraphs, annotations, or future fragments to the engine.
-  const fragments = corpus.fragments.filter(f => f.endMs >= from && f.endMs <= to)
-    .map(({ id, text, startMs, endMs }) => ({ id, text, startMs, endMs }));
+  const fragments = sourceFragments.filter(f => f.endMs >= from && f.endMs <= to);
   if (!fragments.length) throw new Error('Empty range.');
   const env = loadEnv('development', resolve(values['env-dir']), ['TYPESAFE_', 'JEV_']);
   assertJevContext(env.JEV_CONTEXT_VERSION);
@@ -137,9 +138,12 @@ export async function main(args: string[]) {
       active.latestInputToCueStateMs = active.appliedAtMs - arrivals.get(active.input.evidence.fragments.at(-1)!.id)!;
     }
     lastCue = s.cues.currentCue;
-    if (s.lastDecision && s.lastDecision !== lastRecord && active) {
-      lastRecord = s.lastDecision; active.record = s.lastDecision; active.currentCue = s.cues.currentCue;
-      appendFileSync(`${out}.jsonl`, JSON.stringify({ decision: active }) + '\n');
+    if (s.lastDecision && s.lastDecision !== lastRecord) {
+      lastRecord = s.lastDecision;
+      if (active && s.lastDecision.input === active.input) {
+        active.record = s.lastDecision; active.currentCue = s.cues.currentCue;
+        appendFileSync(`${out}.jsonl`, JSON.stringify({ decision: active }) + '\n');
+      }
     }
   });
   const idle = async () => {
@@ -150,7 +154,7 @@ export async function main(args: string[]) {
   try {
     if (prefix) {
       priming = true;
-      for (const fragment of corpus.fragments.filter(f => f.endMs < from)) {
+      for (const fragment of sourceFragments.filter(f => f.endMs < from)) {
         if (!prefixRows.has(fragment.id)) throw new Error('Incomplete prefix.');
         engine.accept(fragment); await idle();
         if (engine.getSnapshot().lastDecision?.outcome === 'fallback') throw new Error('Prefix no longer matches candidates.');
@@ -166,7 +170,7 @@ export async function main(args: string[]) {
       accepted++;
       if (values.mode === 'semantic') await idle();
       if (accepted % 50 === 0) console.log(`${accepted}/${fragments.length} captions, ${rows.length} decisions`);
-      if (rows.slice(-3).length === 3 && rows.slice(-3).every(r => r.failure)) { interrupted = true; break; }
+      if (rows.slice(-3).length === 3 && rows.slice(-3).every(r => r.failure || r.record?.error)) { interrupted = true; break; }
     }
     await idle();
   } finally { engine.dispose(); }
@@ -175,6 +179,7 @@ export async function main(args: string[]) {
   const latencies = rows.map(r => r.providerDurationMs!);
   const displays = changes.map(r => r.sourceReadyToCueStateMs!);
   const summary = { accepted, decisions: rows.length, interrupted,
+    failures: rows.filter(r => r.failure || r.record?.error).length,
     outcomes: Object.fromEntries(['applied', 'quiet', 'discarded', 'fallback'].map(k => [k, rows.filter(r => r.record?.outcome === k).length])),
     actions: Object.fromEntries(['QUIET', 'NEW_CUE', 'UPDATE_CURRENT'].map(k => [k, rows.filter(r => r.returned?.action === k).length])),
     changesPerSourceMinute: changes.length / ((fragments.at(-1)!.endMs - fragments[0]!.startMs) / 60000),
@@ -199,5 +204,5 @@ export async function main(args: string[]) {
   }
   writeFileSync(`${out}.md`, md.join('\n') + '\n');
   console.log(JSON.stringify({ output: `${out}.md`, summary }));
-  if (interrupted || summary.outcomes.fallback) process.exitCode = 1;
+  if (interrupted || summary.failures || summary.outcomes.fallback) process.exitCode = 1;
 }
