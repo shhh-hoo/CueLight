@@ -1,3 +1,4 @@
+// Legacy structured-v3 / scripted compatibility only. Live Jev uses alive/inspection and /api/jev/inspect.
 import { parseRuntimeConfig } from '../server/runtime-config';
 import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -61,7 +62,8 @@ export async function main(args: string[]) {
   if (!fragments.length) throw new Error('Empty range.');
   const env = loadEnv('development', resolve(values['env-dir']), ['TYPESAFE_', 'JEV_']);
   assertJevContext(env.JEV_CONTEXT_VERSION);
-  const config = parseRuntimeConfig(env);
+  // This archived tool validates its v3 context above; shared model/timeout defaults remain usable.
+  const config = parseRuntimeConfig({ ...env, JEV_CONTEXT_VERSION: undefined });
   const apiKey = env.TYPESAFE_API_KEY ?? '';
   if (values.live && !apiKey.trim()) throw new Error('Missing existing configuration.');
   const out = resolve(values.out);

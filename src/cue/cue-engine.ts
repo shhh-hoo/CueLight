@@ -1,3 +1,6 @@
+import { SemanticProviderError } from '../decision/semantic-failure';
+import { accounting } from '../alive/evidence';
+import { buildSemanticRequest, captureInspection, captureRelation, compileProposal, operationCandidates, rangeKey, validateSemanticInput, type SemanticInput, type SemanticProvider, type SemanticTrace } from '../alive/inspection';
 import { buildCandidates, type Candidate } from '../candidates/candidate-builder';
 import { systemClock, type Clock } from '../clock';
 import { validateDecision, type CueDecisionProvider, type DecisionInput } from '../decision/decision-provider';
@@ -34,12 +37,14 @@ export type EngineSnapshot = Readonly<{
   request: DecisionInput | null;
   lastDecision: DecisionRecord | null;
   inputError: string | null;
+  semanticRequest: SemanticInput | null;
+  lastSemantic: SemanticTrace | null;
 }>;
 
 function initialSnapshot(lesson: LessonState): EngineSnapshot {
   return Object.freeze({
     lesson, workingSet: semanticWorkingSet(lesson), evidence: projectEvidenceWindow(lesson), candidates: Object.freeze([]), cues: emptyCueState(),
-    incoming: null, status: 'idle', request: null, lastDecision: null, inputError: null,
+    incoming: null, status: 'idle', request: null, lastDecision: null, inputError: null, semanticRequest: null, lastSemantic: null,
   });
 }
 
@@ -48,6 +53,9 @@ export class CueEngine {
   private lesson: LessonStore;
   private listeners = new Set<() => void>();
   private inFlight = false;
+  private optionalEnabled = true;
+  private relationInFlight = false;
+  private semanticObservers = new Set<(trace: SemanticTrace) => void>();
   private dirty = false;
   private generation = 0;
   private proposalSequence = 0;
@@ -57,11 +65,24 @@ export class CueEngine {
   private disconnectSource: (() => void) | undefined;
   private drainListeners = new Set<() => void>();
 
-  constructor(private readonly provider: CueDecisionProvider, private readonly clock: Clock = systemClock,
+  constructor(private readonly provider: CueDecisionProvider | SemanticProvider, private readonly clock: Clock = systemClock,
     store?: LessonStore) {
     this.lesson = store ?? new LessonStore(memoryJournal(crypto.randomUUID()));
     this.snapshot = initialSnapshot(this.lesson.getSnapshot());
     this.refreshLesson();
+  }
+
+  observeSemantics(observer: (trace: SemanticTrace) => void) {
+    this.semanticObservers.add(observer); return () => { this.semanticObservers.delete(observer); };
+  }
+  stopOptionalInspections() { this.optionalEnabled = false; }
+  configureTeacherCapture(captureId: string) {
+    const s = this.lesson.getSnapshot();
+    this.acceptProposal({ proposalId: `role-${this.proposalPrefix}-${++this.proposalSequence}`, origin: 'host',
+      sessionId: s.sessionId, sessionEpoch: s.sessionEpoch, readSet: { roles: { 'teacher-capture': 0 } },
+      operations: [{ type: 'BIND_ROLE', binding: { bindingId: 'teacher-capture', revision: 1,
+        subject: { kind: 'capture', id: captureId }, role: 'teacher', basis: 'configured',
+        basisRefs: ['host-configured-teacher-input'], sourceRanges: [] } }], processing: [], policyVersion: 'alive-foundation-v1' });
   }
 
   exportLesson = () => this.lesson.export();
@@ -139,6 +160,7 @@ export class CueEngine {
 
   reset(): void {
     this.generation++;
+    this.optionalEnabled = true;
     for (const check of this.drainListeners) check();
     this.dirty = false;
     this.proposalSequence = 0;
@@ -157,11 +179,12 @@ export class CueEngine {
     this.clearExpiry();
     this.disconnectSource?.();
     this.listeners.clear();
+    this.semanticObservers.clear();
   }
 
   // Wait through the transient idle publication between coalesced requests.
-  // The caller seals its source first, so at most the active request and one
-  // latest-input request remain. Reset/disposal cancel, never complete, a drain.
+  // The caller seals its source first; native semantics may still inspect several
+  // remaining units. Reset/disposal cancel, never complete, a drain.
   drain(timeoutMs = 14_000): Promise<void> {
     const generation = this.generation;
     return new Promise<void>((resolve, reject) => {
@@ -192,7 +215,92 @@ export class CueEngine {
     this.expiry = undefined;
   }
 
+  private reportSemantic(trace: SemanticTrace) {
+    if (trace.input.stage === 'primary' && trace.outcome !== 'started') this.publish({ lastSemantic: trace });
+    for (const observe of this.semanticObservers) { try { observe(trace); } catch { /* Diagnostics never own state. */ } }
+  }
+
+  private async inspectSemantic(provider: SemanticProvider, input: SemanticInput, generation: number) {
+    const start = this.clock.now();
+    let trace: SemanticTrace = { input, candidates: operationCandidates(input), outcome: 'provider_failure',
+      error: null, durationMs: 0, foregroundCueId: this.lesson.getSnapshot().attention.currentCueId };
+    try {
+      try { validateSemanticInput(input); }
+      catch { trace = { ...trace, outcome: 'coverage_blocked' }; throw new Error('Semantic inspection requires missing source, candidate, or context coverage.'); }
+      this.reportSemantic({ ...trace, outcome: 'started' });
+      const judgment = await provider.inspect(input);
+      if (this.disposed || generation !== this.generation) return null;
+      trace = { ...trace, judgment, request: buildSemanticRequest(input, judgment.requestModel ?? judgment.model), outcome: 'invalid_judgment' };
+      const proposal = compileProposal(input, judgment);
+      trace = { ...trace, proposal, outcome: 'host_rejection' };
+      const event = this.lesson.accept(proposal, this.clock.now());
+      this.refreshLesson();
+      trace = { ...trace, event, outcome: 'accepted', foregroundCueId: this.lesson.getSnapshot().attention.currentCueId };
+      this.reportSemantic({ ...trace, durationMs: this.clock.now() - start });
+      return { event, judgment };
+    } catch (error) {
+      if (this.disposed || generation !== this.generation) return null;
+      if (error instanceof SemanticProviderError) trace = { ...trace, failureKind: error.kind,
+        ...(error.requestModel ? { request: buildSemanticRequest(input, error.requestModel) } : {}) };
+      const message = error instanceof Error ? error.message : 'Semantic inspection failed.';
+      const stale = trace.outcome === 'host_rejection' && /Stale|dependency/.test(message);
+      this.reportSemantic({ ...trace, outcome: stale ? 'stale' : trace.outcome, error: message, durationMs: this.clock.now() - start });
+      return null;
+    }
+  }
+
+  private async evaluateSemantic(provider: SemanticProvider): Promise<void> {
+    this.inFlight = true; this.dirty = false;
+    const generation = this.generation;
+    const excluded = new Set<string>();
+    let staleRetries = 0, step = 0;
+    try {
+      for (; step < 32 && !this.disposed && generation === this.generation; step++) {
+        const input = captureInspection(this.lesson.getSnapshot(), `inspection-${this.proposalPrefix}-${++this.proposalSequence}`, {}, excluded);
+        if (!input) break;
+        this.publish({ status: 'in-flight', semanticRequest: input });
+        const before = accounting(this.lesson.getSnapshot()).accountedCodeUnits;
+        const result = await this.inspectSemantic(provider, input, generation);
+        if (this.disposed || generation !== this.generation) break;
+        if (!result) {
+          // A bounded fresh capture can resolve a real dependency race. Never
+          // rebase the old choice, retry a failed transport, or account failure.
+          if (this.snapshot.lastSemantic?.outcome === 'stale' && staleRetries++ < 1) continue;
+          input.sources.flatMap(s => s.ranges).forEach(ref => excluded.add(rangeKey([ref])));
+          continue;
+        }
+        if (result.event.processing[0]?.kind === 'WAIT') {
+          result.event.processing[0].ranges.forEach(ref => excluded.add(rangeKey([ref])));
+        } else if (accounting(this.lesson.getSnapshot()).accountedCodeUnits <= before) {
+          this.publish({ inputError: 'Semantic inspection made no processing progress.' }); break;
+        }
+        if (this.optionalEnabled && !this.relationInFlight) {
+          const relation = captureRelation(this.lesson.getSnapshot(), input, result.judgment, result.event);
+          if (relation) {
+            this.relationInFlight = true;
+            // Optional follow-up cannot block source-first publication or the
+            // next primary operation. A changed endpoint rejects its own result.
+            void this.inspectSemantic(provider, relation, generation).finally(() => { this.relationInFlight = false; });
+          }
+        }
+      }
+      if (step === 32 && !this.disposed && generation === this.generation &&
+        captureInspection(this.lesson.getSnapshot(), 'budget-check', {}, excluded)) {
+        this.publish({ inputError: 'Semantic inspection budget reached; remaining evidence is unresolved.' });
+      }
+    } finally {
+      this.inFlight = false;
+      if (!this.disposed) {
+        this.publish({ status: 'idle', semanticRequest: null });
+        if (this.dirty) void this.evaluateLatest();
+        for (const check of this.drainListeners) check();
+      }
+    }
+  }
+
   private async evaluateLatest(): Promise<void> {
+    if ('inspect' in this.provider) return this.evaluateSemantic(this.provider);
+    // Scripted demo and historical v3 replay compatibility only.
     const startedAt = this.clock.now();
     this.inFlight = true;
     this.dirty = false;

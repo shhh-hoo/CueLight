@@ -21,9 +21,10 @@ function boolean(env: Env, name: string, fallback: boolean): boolean {
   return value === 'true';
 }
 export function parseRuntimeConfig(env: Env) {
+  if (env.JEV_CONTEXT_VERSION?.trim() && env.JEV_CONTEXT_VERSION !== 'alive-jev-v1') throw new Error('JEV_CONTEXT_VERSION must be alive-jev-v1 for the product runtime.');
   const jev: JevConfiguration = Object.freeze({
     model: model(env, 'JEV_MODEL', 'jev-latest'),
-    timeoutMs: integer(env, 'JEV_TIMEOUT_MS', 5000, 100, 60000), contextVersion: 'structured-v3',
+    timeoutMs: integer(env, 'JEV_TIMEOUT_MS', 5000, 100, 60000), contextVersion: 'alive-jev-v1',
   });
   const refinement: RefinementConfiguration = Object.freeze({
     model: model(env, 'OPENAI_REFINEMENT_MODEL', 'gpt-5.6-luna'),

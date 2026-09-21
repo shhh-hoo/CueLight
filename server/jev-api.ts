@@ -1,3 +1,6 @@
+import { SemanticProviderError } from '../src/decision/semantic-failure.ts';
+import { validateSemanticInput, judgmentResponse } from '../src/alive/inspection.ts';
+import { inspectWithJev } from './semantic-jev.ts';
 import { parseRuntimeConfig } from './runtime-config.ts';
 import type { JevConfiguration } from '../src/runtime-config.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -19,7 +22,7 @@ export function createJevMiddleware(options: Options) {
   const config = options.config ?? parseRuntimeConfig({ JEV_MODEL: options.model }).jev;
   return (request: IncomingMessage, response: ServerResponse, next: () => void) => {
     const path = request.url?.split('?')[0];
-    if (path !== '/api/jev/status' && path !== '/api/jev/decide') { next(); return; }
+    if (path !== '/api/jev/status' && path !== '/api/jev/decide' && path !== '/api/jev/inspect') { next(); return; }
     const host = request.headers.host ?? '';
     if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) ||
         (request.headers.origin && request.headers.origin !== `http://${host}`)) {
@@ -30,7 +33,7 @@ export function createJevMiddleware(options: Options) {
       reply(response, 200, { configured: !!options.apiKey?.trim(), ...config });
       return;
     }
-    if (path !== '/api/jev/decide' || request.method !== 'POST') {
+    if ((path !== '/api/jev/decide' && path !== '/api/jev/inspect') || request.method !== 'POST') {
       reply(response, 405, { error: 'Method not allowed.' });
       return;
     }
@@ -59,6 +62,23 @@ export function createJevMiddleware(options: Options) {
           }
           chunks.push(Buffer.from(chunk));
         }
+        if (path === '/api/jev/inspect') {
+          let semantic;
+          try { semantic = validateSemanticInput(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+          catch { reply(response, 400, { error: 'Invalid semantic inspection or source context.' }); return; }
+          try {
+            const judgment = await inspectWithJev(semantic, { apiKey: options.apiKey!, model: config.model,
+              timeoutMs: config.timeoutMs, transport: options.transport, signal: controller.signal });
+            if (!controller.signal.aborted) reply(response, 200, { judgment: judgmentResponse(judgment), configuration: config });
+          } catch (error) {
+            const message = error instanceof Error && (error.message === 'Jev request timed out.' || /^Jev HTTP \d{3}\.$/.test(error.message))
+              ? error.message : 'Jev returned no usable semantic judgment.';
+            if (!controller.signal.aborted) reply(response, 502, { error: message, failureKind: error instanceof SemanticProviderError ? error.kind : 'transport', configuration: config });
+          }
+          return;
+        }
+        // Quarantined structured-v3 endpoint for historical replay tooling only.
+        // The product runtime calls /inspect; this never chooses its semantics.
         let input;
         try { input = validateInput(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
         catch { reply(response, 400, { error: 'Invalid decision input or ungrounded candidates.' }); return; }
@@ -75,7 +95,7 @@ export function createJevMiddleware(options: Options) {
           },
         });
         const decision = await provider.decide(input);
-        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure, configuration: config } : { decision, diagnostics, configuration: config });
+        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure, configuration: { ...config, contextVersion: 'structured-v3' } } : { decision, diagnostics, configuration: { ...config, contextVersion: 'structured-v3' } });
       } catch {
         if (!response.headersSent && !controller.signal.aborted) reply(response, 400, { error: 'Unable to read decision input.' });
       } finally {

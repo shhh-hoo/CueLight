@@ -12,7 +12,7 @@ Canonical authority, in order:
 
 Alive Cue **Slices I–II** establish immutable evidence, stable Cue identities and revisions, lifecycle/relations/adoption/deferred records, a single acceptance writer, deterministic replay, and a derived Semantic Working Set. See [foundation implementation notes](docs/alive-cue-foundation.md) for exact boundaries, storage, migration, and test mapping.
 
-The learner UI remains current plus a brief previous Cue. Speechmatics Voice SDK input, Jev structured-v3 selection and diagnostics, and optional source-first text/list/chain Presentation V1 remain. Jev's old actions are a transitional adapter: this is not yet the redesigned multi-Cue interpreter. Teacher controls, Domain Pack retrieval, non-current background work, and semantic repair remain later slices. No semantic or classroom quality is claimed by deterministic tests.
+**Slice III** adds `alive-jev-v1`: bounded source-grounded WAIT / NO_CHANGE / CREATE / REVISE / RECALL / WITHDRAW proposals over persistent Cues, plus optional relation follow-up. See [Slice III notes and validation](docs/alive-cue-jev-proposals.md). The learner UI remains current plus a brief previous Cue; Speechmatics input and source-first text/list/chain Presentation V1 remain downstream. Teacher controls, Domain Pack retrieval, non-current background work, and semantic repair remain later slices. No semantic or classroom quality is claimed by deterministic tests.
 
 Browser runtimes save a text-only accepted lesson journal in **tab-scoped sessionStorage**, recoverable across reload through the journal API; closing the tab ends its retention. Starting/resetting the UI opens a fresh session and does not automatically resume old capture or paid work. `LessonStore.export()` / `CueEngine.exportLesson()` provide portable JSON; `LessonStore.delete()` removes a stored lesson and invalidates that store. Recovery/export/delete UI is deferred with the teacher surface. Storage failure prevents publication and is surfaced as an error. No audio is retained by this journal.
 
@@ -29,14 +29,14 @@ npm run dev
 
 Open the local URL printed by Vite. Choose Science, History, Literature, Programming, or Mathematics, then select **Start replay**. Each 16.8-second sample includes filler, a new point, a clarification, and a different point. Pause/continue preserves replay timing. Reset clears the active display, diagnostics, and replay position and starts a new lesson identity; the previous tab journal remains until explicit deletion or tab closure. Changing lessons starts a fresh session.
 
-**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Microphone and Jev text-replay sessions additionally retain an in-memory diagnostic journal that you can explicitly download before resetting or switching sources. Scripted replay retains its bounded snapshot.
+**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Microphone and Jev text-replay sessions additionally retain full semantic inspection traces (including coverage, exact request, choice, proposal, acceptance and compatibility foreground) an in-memory diagnostic journal that you can explicitly download before resetting or switching sources. Scripted replay retains its bounded snapshot.
 
 ```sh
 npm run build
 npm run preview
 ```
 
-The production browser bundle has the same replay and Cue Engine, without the debug panel, upstream Jev adapter, or credentials. Fonts use local system fallbacks. Scripted mode makes no external requests. There is no persistence; reloading starts over.
+The production browser bundle has the same replay and Cue Engine, without the debug panel, upstream Jev adapter, or credentials. Fonts use local system fallbacks. Scripted mode makes no external requests. The tab-scoped lesson journal remains recoverable; the UI starts a new capture on reload.
 
 ## Enable Jev locally
 
@@ -46,13 +46,13 @@ The production browser bundle has the same replay and Cue Engine, without the de
 4. Choose **Jev** in **Decision provider**. The page checks local configuration without calling the model. **Start replay** is disabled until a server key is present; configuration readiness does not prove the key is valid.
 5. Select **Start replay** to send finalized teaching evidence to Jev using your TypeSafe account. No model request happens merely from opening the app or selecting Jev. Switch back to **Scripted demo** for offline development.
 
-Changing provider starts a fresh session. Reset and provider/lesson changes cancel pending browser requests, propagate disconnect cancellation upstream, and retain the Engine's session/version guards. Provider failures preserve the learner's existing Cue; a service error appears outside the learner surface and the development panel records fallback and latency. There is no automatic fallback to scripted decisions.
+Changing provider starts a fresh session. Reset and provider/lesson changes cancel pending browser requests, propagate disconnect cancellation upstream, and retain the Engine's session/version guards. Provider failures preserve the learner's existing Cue; a service error appears outside the learner surface and the development panel records the distinct failure category and latency. There is no automatic fallback to scripted decisions.
 
 The local API is built into Vite's development and preview servers; no extra process is required. It is restricted to local same-origin HTTP requests and is not a public authenticated service. A bare static `dist/` host cannot run Jev; use `npm run preview` for the local built application. Public hosting/authentication is outside this slice.
 
-Jev first uses recent source evidence to infer what is being taught now, then compares it with `currentCue`, the reference still displayed to the learner. That reference may be stale. A different useful teaching point can become NEW_CUE even when unrelated to the displayed Cue; a material clarification, correction, completion or answer to the same point can UPDATE_CURRENT. Filler, administration, repetition without added understanding, or no useful complete selectable span yields QUIET. Selection remains verbatim and grounded, with no Cue frequency target. Server validation preserves optional speaker identity (nonblank string, at most 128 characters) and language (at most 64), rejecting control characters and invalid values. Speaker identity can indicate turn changes, not teacher/student authority.
+Jev selects a grounded operation over a bounded Semantic Working Set, including non-current Cues and exact part targets. The Host compiles its choice into the shared SemanticProposal and the single acceptance writer checks sources, authority, dependencies, identity and accounting. WAIT leaves evidence unresolved; NO_CHANGE accounts actual understanding; provider failures do neither. Configured teacher captures authorize speech without requiring diarization; speaker labels alone never grant teacher authority.
 
-Jev always uses **structured-v3**. There is no context selector or older-context implementation. Remove old `JEV_CONTEXT_VERSION` settings from local configuration: an unset/empty value or `structured-v3` is accepted; any other value stops startup or replay with an explicit error.
+The product uses **alive-jev-v1** through `/api/jev/inspect`. Remove old `JEV_CONTEXT_VERSION` settings or use `alive-jev-v1`. The structured-v3 provider and `/api/jev/decide` remain quarantined for historical replay tooling; neither runs in the live product. The offline scripted demo retains its legacy display vocabulary through the same acceptance writer.
 
 ### Runtime experiments
 
@@ -69,7 +69,7 @@ Provider timeouts are experimental controls; unchanged Cue freshness and stop/dr
 
 ## Use the microphone
 
-Microphone mode now requires **Python 3.11+** as well as **Node 24+**. The browser uses the existing Speechmatics PCM recorder; a small Python gateway supplies finalized Voice SDK segments. Jev still chooses QUIET / NEW_CUE / UPDATE_CURRENT. Learners do not see a live transcript.
+Microphone mode now requires **Python 3.11+** as well as **Node 24+**. The browser uses the existing Speechmatics PCM recorder; a small Python gateway supplies finalized Voice SDK segments. Jev proposes Alive Cue semantic changes; the Host explicitly configures this microphone capture as teacher-authorized. Learners do not see a live transcript.
 
 1. Set `TYPESAFE_API_KEY` and `SPEECHMATICS_API_KEY` in this checkout's ignored `.env.local`. Preserve existing values; never prefix credentials with `VITE_`. Both services load this file; environment variables take precedence in the gateway.
 2. Install once from the repository root:
@@ -98,7 +98,7 @@ Microphone mode now requires **Python 3.11+** as well as **Node 24+**. The brows
 Browser microphone → PCMRecorder / AudioWorklet → same-origin WebSocket
 → Python Voice gateway → Speechmatics VoiceAgentClient
 → ADD_SEGMENT → ordered EvidenceFragments (one batch per event)
-→ existing candidate builder → Jev structured-v3 → raw Cue
+→ bounded Semantic Working Set → Jev alive-jev-v1 → SemanticProposal → acceptance → source Cue
 → optional OpenAI refinement, asynchronously
 ```
 
@@ -106,7 +106,7 @@ Pinned packages: `@speechmatics/browser-audio-input@2.0.4`, `speechmatics-voice=
 
 The gateway selects the official Voice SDK `CAPTIONS` or `SCRIBE` preset using `SPEECHMATICS_VOICE_PRESET` (default `scribe`). It preserves each preset's own timing/segmentation settings and overlays `language="cmn_en"`, the actual session sample rate, and `pcm_f32le`. Both use the enhanced operating point. Only finalized `ADD_SEGMENT` evidence is consumed, including when the selected preset also emits partials. The SDK uses its default EU endpoint (`eu2.rt.speechmatics.com`), or its existing server-only `SPEECHMATICS_RT_URL` override. Language, encoding, mono audio and sample-rate compatibility remain code contracts.
 
-Only **`AgentServerMessageType.ADD_SEGMENT`** is forwarded as evidence. `ADD_PARTIAL_SEGMENT` and legacy word transcripts have no application handlers. The SDK may consume these internally. A multi-segment event is ordered on the source timeline, accepted atomically, and schedules at most one decision cycle. Existing one-in-flight/latest-pending coalescing remains. Candidates are the newest whole segment, contiguous recent whole segments, or the existing current-Cue expansion; Jev compares recent teaching evidence against the persistent displayed Cue. Text is copied verbatim, including whitespace, with source times, session ID, sequence, event cycle, speaker/language where supplied, and browser receive time. Empty segments are skipped; invalid or over-4096-character evidence is reported without truncation.
+Only **`AgentServerMessageType.ADD_SEGMENT`** is forwarded as evidence. `ADD_PARTIAL_SEGMENT` and legacy word transcripts have no application handlers. The SDK may consume these internally. A multi-segment event is ordered on the source timeline and accepted atomically. One primary inspection runs at a time; later input coalesces while it is busy. Legal punctuation subranges, the full remaining range, and an optional open-tail continuation are source candidates, not forced semantic boundaries. Accepted accounting can trigger another bounded step over the unaccounted remainder of the same Final. Optional relation requests do not block primary acceptance. Text is copied verbatim, including whitespace, with source times, session ID, sequence, event cycle, speaker/language where supplied, and browser receive time. Empty segments are skipped; invalid or over-4096-character evidence is reported without truncation.
 
 ### Stop, cancellation and SDK compatibility
 
@@ -157,10 +157,10 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
   → CueEngine.accept(fragment)
   → persist immutable evidence in LessonStore
   → bounded evidence/Working Set projections
-  → buildCandidates
-  → CueDecisionProvider.decide(snapshot)
-  → validate decision + session/current Cue + bounded append-only freshness
-  → legacy proposal adapter → validate/persist accepted event
+  → capture grounded operation candidates over persistent Cue IDs/parts
+  → SemanticProvider.inspect(captured Working Set)
+  → compile SemanticProposal + exact source/role/revision dependencies
+  → single acceptance writer validates/persists AcceptedEvent
   → lesson Cue records → current / previous projection
   → CueSurface
 ```
@@ -168,13 +168,13 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
 | Module | Responsibility |
 | --- | --- |
 | `src/evidence/evidence-buffer.ts` | Immutable snapshots of up to 20 seconds / 32 finalized fragments; version increments on accepted input. |
-| `src/candidates/candidate-builder.ts` | Up to four deduplicated, contiguous source spans. No paraphrasing, summarization, NLP, or ontology. |
+| `src/candidates/candidate-builder.ts` | Legacy scripted/v3 source-span compatibility only. |
 | `src/decision/` | Provider contract, validation, scripted mock, same-origin HTTP client, and server-only Jev adapter. |
 | `server/` | Bounded request validation, local Jev and OpenAI refinement endpoints, mounted by `vite.config.ts` in dev and preview. |
 | `voice_gateway/` | Local Python Voice SDK service and focused lifecycle/protocol checks. |
 | `src/speechmatics/` | Browser PCM capture, Voice gateway connection, finalized segment adapter, source lifecycle and development diagnostics. |
 | `src/refinement/` | Optional same-revision display refinement; separate presentation state, bounded scheduling and local HTTP client. |
-| `src/cue/cue-engine.ts` | Evidence intake, a single in-flight request, one dirty bit, version/session guards, diagnostics, and previous-Cue expiry. |
+| `src/cue/cue-engine.ts` | Evidence intake, bounded primary inspection loop, optional non-blocking relation slot, version/session guards, diagnostics, and display expiry. |
 | `src/alive/` | Shared domain types, pure acceptance reducer, journal/replay, exact source ranges, accounting, projections and transitional adapter. |
 | `src/replay/` | Timer-driven finalized input and five fixtures with separate, explicit decision scripts. |
 | `src/ui/` | Clean learner surface and separately loaded development diagnostics. |
@@ -185,49 +185,32 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
 
 Source adapters must deliver unique finalized fragment IDs in chronological `endMs` order with valid nonnegative timestamps and nonempty text. A fragment is limited to 4,096 characters to keep the in-memory bound meaningful; oversized text is rejected and diagnosed rather than rewritten or split. Exact retransmissions are idempotent; reused IDs with changed payloads and out-of-order fragments are rejected and diagnosed. IDs must not be reused within a source session.
 
-The legacy request projection retains at most 20 seconds / 32 finalized fragments. The authoritative lesson retains every recorded source and Cue independently of this projection. `SemanticWorkingSet` supports exact-ID/text lookup of older lesson Cues, explicit recall, open and settled objects, source/role/relation context and omission metadata. It is available for Slice III; structured-v3's wire input is intentionally unchanged. Diagnostics are not recovery authority.
+The legacy request projection retains at most 20 seconds / 32 finalized fragments. The authoritative lesson retains every recorded source and Cue independently of this projection. `SemanticWorkingSet` supports exact-ID/text lookup of older lesson Cues, explicit recall, open and settled objects, source/role/relation context and omission metadata. It supplies the Slice III interpreter; only current revisions are transported, with complete necessary parts. Diagnostics are not recovery authority.
 
-Candidates are the latest one, two, and three adjacent fragments, plus the span from the current Cue's first source fragment through the newest fragment, only while its complete original range remains in the window. Smaller windows yield fewer candidates. Text is preserved exactly, with one space between fragments. Candidate IDs encode the ordered source ID list. The current-Cue continuation has `updateOnly: true`: it is offered only as UPDATE_CURRENT, including when it duplicates a recent span. Other recent spans may be NEW_CUE or, with a current Cue, UPDATE_CURRENT. The server reconstructs this eligibility from evidence and Cue provenance; browser flags cannot override it.
+The new source layer exposes exact legal punctuation subranges, the whole pending range, and bounded open-tail continuations. They are candidate addresses, not forced semantic units. The primary Choice selects one grounded operation; independent source-stance questions preserve pedagogical role. Server code rebuilds options from validated context. Candidate omissions are explicit; no topic classifier, transcript rewrite or external retrieval is added.
 
 ### Decisions, concurrency, and display
 
-`CueDecisionProvider.decide({ evidence, candidates, currentCue })` returns only `QUIET`, `NEW_CUE(candidateId)`, or `UPDATE_CURRENT(candidateId)`. Mock scripts match source ID ranges against actual candidates. Unknown inputs or unavailable script ranges return `QUIET`; scripts cannot inject display text.
+`SemanticProvider.inspect(capturedInspection)` returns typed judgments that compile into WAIT / NO_CHANGE / CREATE / REVISE / RECALL / WITHDRAW proposals. The compiler binds source, target Cue revision, and target part where needed. An optional separate relation inspection follows an accepted operation only when explicit new relationship evidence was selected.
 
-Only one decision may be in flight per Engine. Additional evidence sets one dirty bit. A result can apply after new evidence arrives if the session and current Cue still match, request age and source-time advancement are each at most five seconds, and all selected source fragments remain in the evidence window. Rejections record a reason. Candidates are rebuilt after an accepted mutation, then one coalesced request evaluates the latest evidence. There is no per-fragment queue or retry. All snapshots sent to the provider are immutable.
+One primary request is active at a time. Accepted processing must advance before another step over the same Final; WAIT and failed snapshots do not spin. New input coalesces, and required stale dependencies cause rejection and at most one fresh recapture. The semantic path does not use display equality or the old five-second evidence-window cutoff as semantic freshness. Relation work cannot block primary publication or change foreground.
 
-These temporal/source bounds allow progress; they do not recognize semantic freshness. Newer speech can correct or invalidate a statement, or change topic, inside the five-second interval. A temporarily outdated Cue can therefore appear before the follow-up decision. Semantic freshness remains an open product requirement.
+CREATE and RECALL select compatibility foreground; offscreen REVISE preserves the displayed object. Current Cue has no inactivity TTL. Previous expires after four seconds without deleting its lesson identity. Pause stops source emissions but not pending work. Reset/disposal invalidates late results by session generation and epoch.
 
-Reset increments a session generation so an old result cannot match a new session's reused evidence version. If a request is pending at reset, the same Engine waits for it to settle before evaluating new evidence. Disposal disconnects the source, clears the expiry timer, and ignores late responses. A future custom provider must settle its promises; the Jev adapter has a hard five-second deadline.
-
-- **QUIET:** display is unchanged; newly inspected pending ranges remain WAIT because structured-v3 cannot distinguish incomplete from understood/no-change. Provider failure leaves ranges recorded/unresolved. The domain supports explicit NO_CHANGE independently.
-- **NEW_CUE:** normally compiles to CREATE and foreground selection. Exact re-selection of an established source identity compiles to RECALL. Other Cues remain alive; a new one does not settle them.
-- **UPDATE_CURRENT:** compiles to a REVISE of the transitional whole-source part; unchanged exact source selection is a MENTION. Identity survives. Without a displayed Cue, it compiles to CREATE. The domain also supports targeted part revisions and EXTEND.
-- Current Cue persists until NEW_CUE or explicit state removal; it has no automatic TTL. Previous Cue currently expires four seconds after moving into that position, independent of speech and subsequent updates. Another NEW_CUE starts a new four-second transition. The previous-slot behavior is a baseline UI behavior to validate, not a fixed learning rule.
-
-Pause stops future source emissions; it does not cancel a pending decision or suspend previous-Cue expiry.
+The scripted demo and historical replay CLI retain the explicitly labelled legacy adapter. They use the same LessonStore writer, but their NEW/UPDATE/QUIET vocabulary is not the live Jev contract. Historical v3 results must not be treated as Alive Cue evaluations.
 
 ## Jev integration boundary
 
-The adapter follows the [official TypeSafe HTTP API](https://docs.typesafe.ai/api), checked on 2026-09-20:
+The adapter follows the [official TypeSafe HTTP API](https://docs.typesafe.ai/api), checked on 2026-09-22. No SDK is installed; server-only transport posts `{ model, state, questions }` to `/v1/systemone`. Credentials never enter the browser.
 
-```text
-POST https://api.typesafe.ai/v1/systemone
-Authorization: Bearer <API_KEY>
-{ model, state, questions }
-```
+- `GET /api/jev/status` reports configuration without calling TypeSafe.
+- `POST /api/jev/inspect` accepts a bounded capture and returns validated judgment metadata plus effective configuration. The server reconstructs candidates and questions.
+- `/api/jev/decide` is quarantined for historical v3 tooling and returns its legacy contract version explicitly.
+- The boundary is same-origin loopback HTTP, limited to 2 MB. Invalid source/context fails before any upstream call. Missing configuration is 503; provider failure is 502 with an allowlisted category. Raw errors and credentials are never reflected.
+- Server timeout defaults to five seconds, including response parsing, and settles even if a transport ignores abort. Timeout, transport/HTTP, invalid choice and malformed response stay distinguishable. Failure never compiles to NO_CHANGE or accounts source.
+- Raw probabilities/confidence are retained without a hard-coded semantic threshold. Accepted events carry proposal and inspection identity; diagnostic traces include build/request/config identity and count unique attempts without double-counting mirrors.
 
-`src/decision/jev-decision-provider.ts` is server-only and is not imported by the browser app. It defaults to `jev-latest` with a 5,000 ms server deadline and supports a configured model/timeout and injected transport. Vite loads `TYPESAFE_API_KEY`, `JEV_MODEL`, and `JEV_TIMEOUT_MS` from the server environment or `.env.local` and passes them to the local bridge. No key is sent to the browser.
-
-- `GET /api/jev/status` returns only `{ configured, model, timeoutMs, contextVersion }`; it does not call TypeSafe.
-- `POST /api/jev/decide` accepts the existing `DecisionInput` and returns `{ decision, configuration }`. The server validates bounded evidence and current Cue, rebuilds the deterministic candidates, and rejects any mismatch before contacting Jev.
-- Requests are limited to 2 MB and same-origin loopback hosts. Malformed input returns 400, missing key 503, and upstream failure 502. Raw upstream errors and credentials are never reflected to the browser. No request history is stored.
-- The HTTP provider has a 6.5-second browser deadline; the upstream adapter retains its five-second deadline. HTTP failures are caught by the same Engine and recorded as QUIET fallbacks, not successful semantic QUIET decisions.
-
-The V3 request contains one `choice` question with `QUIET` and bounded NEW/UPDATE options for supplied candidates. Following the `typesafe-ai` skill and the official [source-span selection cookbook](https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook), code generates candidates and copies the selected text verbatim. State separates latest speech, background, current Cue provenance and candidate source overlap. Instructions and criteria use [backticked field paths](https://docs.typesafe.ai/primitives#reference-specific-fields), such as `latestInput.text`, `backgroundEvidence`, `currentCue.text` and `candidates[0].text`. With no current Cue, nested current-Cue references and UPDATE options are omitted. UPDATE replaces the whole Cue and must retain needed context. The adapter maps a validated `answers.cue.choice` to a local action/ID pair; it never accepts generated Cue text. Confidence and probabilities are schema-validated, not used as product thresholds.
-
-Missing credentials, malformed JSON/schema, unknown options, HTTP/network failures, and the configured deadline (default five seconds) return QUIET. There are no retries. An optional server-side error callback provides diagnostics. Successful provider responses pass only validated choice/confidence/probabilities through HTTP into the session journal; the Engine still receives the normalized CueDecision and compiles it to a domain proposal. No probabilities are fabricated for fallbacks or no-candidate requests. The deadline includes response-body parsing and settles even if a test transport ignores abort.
-
-**Historical live evaluations made 940 Jev decisions with 3 fallbacks.** Their mixed selection results and provider/publication timings are recorded in the unfinished local evaluation notes. They do not establish V3 semantic quality. Automated protocol checks use fake transport and credentials; the local HTTP bridge is tested over real loopback HTTP, and browser Jev tests intercept the local decision endpoint. Automated tests never call a model.
+The [implementation notes](docs/alive-cue-jev-proposals.md) describe bounds, failure handling, deterministic regressions and remaining qualification gaps. The [small live plan](docs/alive-cue-jev-live-plan.md) is prepared but **not executed**. Automated tests use mocked responses and never call paid providers.
 
 ## Optional OpenAI Presentation V1
 

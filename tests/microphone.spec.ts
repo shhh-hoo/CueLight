@@ -1,5 +1,5 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
-import { buildJevOptions } from '../src/decision/jev-choice';
+import { semanticReply } from './semantic-mock';
 
 const configuration = { preset: 'captions', language: 'cmn_en', operatingPoint: 'enhanced',
   audioEncoding: 'pcm_f32le', channels: 1, voiceVersion: '0.2.8', rtVersion: '1.1.1', sampleRate: 16000 };
@@ -38,18 +38,15 @@ function segments(cycle: number, texts: string[]) {
     startSeconds: cycle * 3 + index, endSeconds: cycle * 3 + index + .8, speakerId: 'S1', language: 'en' })) };
 }
 
-test('real recorder → batch evidence → one Jev cycle; stop waits for trailing Cue before finish', async ({ page }) => {
+test('real recorder → batch evidence → bounded semantic steps; stop waits for trailing Cue before finish', async ({ page }) => {
   let calls = 0;
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/jev/decide', async route => {
+  await page.route('**/api/jev/inspect', async route => {
     calls++;
     const input = route.request().postDataJSON();
-    if (calls === 2) await pending;
-    const probabilities = Object.fromEntries([...buildJevOptions(input).keys()].map(key => [key, key === 'NEW_CUE_0' ? 0.88 : key === 'QUIET' ? 0.12 : 0]));
-    await route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id },
-      diagnostics: { choice: 'NEW_CUE_0', confidence: 0.73, probabilities },
-      configuration: { model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' } } });
+    if (calls === 3) await pending;
+    await route.fulfill({ json: semanticReply(input, input.sources[0].ranges[0].quote === 'Okay, moving on.' ? 'NO_CHANGE' : 'CREATE') });
   });
   const sessions = await setup(page, undefined, { ...configuration, preset: 'scribe' });
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
@@ -60,13 +57,13 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
   send(session, 'AddTranscript', segments(1, ['word']));
   send(session, 'segments', segments(1, ['Okay, moving on.', text]));
   await expect(page.getByTestId('current-cue')).toContainText(text);
-  expect(calls).toBe(1);
+  expect(calls).toBe(2);
   await expect(page.getByRole('region', { name: 'Learner surface' })).not.toContainText('Never displayed');
   await page.getByRole('button', { name: 'Stop microphone' }).click();
   await expect.poll(() => session.commands).toContain('stop');
   send(session, 'segments', segments(2, ['The last sentence is retained.']));
   send(session, 'drained');
-  await expect.poll(() => calls).toBe(2);
+  await expect.poll(() => calls).toBe(3);
   expect(session.commands).not.toContain('finish');
   await expect(page.getByRole('button', { name: 'Finishing session…' })).toBeVisible();
   release();
@@ -81,30 +78,30 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
   let json = ''; for await (const chunk of stream) json += chunk;
   const trace = JSON.parse(json);
   expect(trace.configuration.preset).toBe('scribe');
-  expect(trace.jev).toEqual({ model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' });
-  expect(trace.schemaVersion).toBe(3);
+  expect(trace.jev).toEqual({ model: 'jev-test', timeoutMs: 5000, contextVersion: 'alive-jev-v1' });
+  expect(trace.schemaVersion).toBe(4);
   expect(trace.refinement).toMatchObject({ model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false, style: 'presentation-v1' });
   expect(json).not.toMatch(/apiKey|Authorization|API_KEY/);
   expect(trace.fragments).toHaveLength(3);
-  expect(trace.events.filter((e: { type: string }) => e.type === 'jev-request')).toHaveLength(2);
-  const returns = trace.events.filter((e: { type: string }) => e.type === 'jev-return');
-  expect(returns).toHaveLength(2);
-  for (const result of returns) {
-    expect(result.diagnostics).toMatchObject({ choice: 'NEW_CUE_0', confidence: 0.73,
-      probabilities: { QUIET: 0.12, NEW_CUE_0: 0.88 } });
+  expect(trace.uniqueSemanticProviderAttempts).toBe(3);
+  expect(trace.semanticAttempts).toHaveLength(3);
+  for (const attempt of trace.semanticAttempts) {
+    expect(attempt.trace.judgment.operation.confidence).toBe(0.73);
+    expect(attempt.trace.outcome).toBe('accepted');
+    expect(attempt.trace.proposal.inspection.contractVersion).toBe('alive-jev-v1');
+    expect(attempt.trace.request.questions.operation.type).toBe('choice');
   }
-  expect(trace.segmentDecisions.map((s: { triggeredRequestIds: number[] }) => s.triggeredRequestIds.length)).toEqual([1, 1, 1]);
 });
 
 test('reset cancels old Jev; a second session rejects old events; gateway loss is visible', async ({ page }) => {
   let release!: () => void;
   let calls = 0;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/jev/decide', async route => {
+  await page.route('**/api/jev/inspect', async route => {
     calls++;
     const input = route.request().postDataJSON();
     if (calls === 1) await gate;
-    await route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } }).catch(() => {});
+    await route.fulfill({ json: semanticReply(input) }).catch(() => {});
   });
   const sessions = await setup(page);
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
@@ -128,9 +125,9 @@ test('reset cancels old Jev; a second session rejects old events; gateway loss i
 
 test('Jev error leaves the Cue intact while provider errors interrupt with an actionable message', async ({ page }) => {
   let calls = 0;
-  await page.route('**/api/jev/decide', route => {
+  await page.route('**/api/jev/inspect', route => {
     const input = route.request().postDataJSON();
-    return ++calls === 1 ? route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } })
+    return ++calls === 1 ? route.fulfill({ json: semanticReply(input) })
       : route.fulfill({ status: 502, json: { error: 'unavailable' } });
   });
   const sessions = await setup(page);
@@ -170,9 +167,9 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
     await gate;
     await route.fulfill({ json: { result: { kind: 'presentation', blocks: [{ kind: 'text', text: 'Stale refined wording.' }] } } }).catch(() => {});
   });
-  await page.route('**/api/jev/decide', route => {
+  await page.route('**/api/jev/inspect', route => {
     const input = route.request().postDataJSON();
-    return route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } });
+    return route.fulfill({ json: semanticReply(input) });
   });
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Text refinement', exact: false }).check();
@@ -195,9 +192,9 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
 test('safe refinement defaults apply per new session, enforce input limit, and require credentials', async ({ page }) => {
   let refinementCalls = 0;
   await page.route('**/api/openai/refine', route => { refinementCalls++; return route.fulfill({ json: { result: { kind: 'source' } } }); });
-  await page.route('**/api/jev/decide', route => {
+  await page.route('**/api/jev/inspect', route => {
     const input = route.request().postDataJSON();
-    return route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } });
+    return route.fulfill({ json: semanticReply(input) });
   });
   const publicConfig = { configured: true, model: 'experiment-model', timeoutMs: 6000, maxInputChars: 10, defaultEnabled: true };
   const sessions = await setup(page, publicConfig);

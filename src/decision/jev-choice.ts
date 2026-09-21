@@ -18,7 +18,7 @@ export function buildJevOptions(input: DecisionInput): ReadonlyMap<string, CueDe
 }
 
 // Copy only validated choice metadata, never a raw provider/server object.
-export function parseJevChoice(value: unknown, options: ReadonlyMap<string, CueDecision>): JevChoiceDiagnostics {
+export function parseJevChoice(value: unknown, options: ReadonlyMap<string, unknown>): JevChoiceDiagnostics {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       !('choice' in value) || typeof value.choice !== 'string' || !options.has(value.choice)) {
     throw new Error('Jev selected an option not supplied in this request.');

@@ -1,9 +1,9 @@
-import { relevantRoles } from './authority';
-import { EVIDENCE_WINDOW_MS, MAX_FRAGMENTS, type EvidenceWindow } from '../evidence/evidence-buffer';
-import type { Cue, CueState } from '../cue/types';
-import { binding, freeze, pendingBindings, requireDomain as check } from './evidence';
-import { currentRevision } from './reducer';
-import type { CueRecord, EvidenceBinding, LessonState, ReadSet } from './types';
+import { relevantRoles } from './authority.ts';
+import { EVIDENCE_WINDOW_MS, MAX_FRAGMENTS, type EvidenceWindow } from '../evidence/evidence-buffer.ts';
+import type { Cue, CueState } from '../cue/types.ts';
+import { binding, freeze, pendingBindings, requireDomain as check } from './evidence.ts';
+import { currentRevision } from './reducer.ts';
+import type { CueRecord, EvidenceBinding, LessonState, ReadSet } from './types.ts';
 
 export function projectEvidenceWindow(state: LessonState): EvidenceWindow {
   const latest = state.evidence[state.evidenceOrder.at(-1) ?? ''];

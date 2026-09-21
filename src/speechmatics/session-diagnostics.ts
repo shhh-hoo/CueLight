@@ -1,3 +1,4 @@
+import type { SemanticTrace } from '../alive/inspection';
 import type { CueEngine, DecisionRecord } from '../cue/cue-engine';
 import type { CueState } from '../cue/types';
 import type { DecisionInput } from '../decision/decision-provider';
@@ -10,6 +11,7 @@ import type { RefinementObservation } from '../refinement/types';
 import { jevConfiguration, type JevConfiguration, type RefinementConfiguration } from '../runtime-config';
 
 type DiagnosticEvent =
+  | { type: 'semantic-inspection'; atMonoMs: number; trace: SemanticTrace }
   | { type: 'jev-configuration'; atMonoMs: number; configuration: JevConfiguration }
   | SourceObservation
   | RefinementObservation
@@ -82,7 +84,8 @@ export class SessionDiagnostics {
     let cues = engine.getSnapshot().cues;
     let decision = engine.getSnapshot().lastDecision;
     let incoming = engine.getSnapshot().incoming;
-    return engine.subscribe(() => this.safely(() => {
+    const detachSemantic = engine.observeSemantics(trace => this.safely(() => this.events.push({ type: 'semantic-inspection', atMonoMs: this.now(), trace })));
+    const detach = engine.subscribe(() => this.safely(() => {
       const snapshot = engine.getSnapshot();
       if (this.source === 'text-replay' && snapshot.incoming && snapshot.incoming !== incoming) {
         incoming = snapshot.incoming;
@@ -100,12 +103,15 @@ export class SessionDiagnostics {
           discardReason: decision.discardReason, failed: decision.error !== null });
       }
     }));
+    return () => { detach(); detachSemantic(); };
   }
 
   export() {
     return {
-      schemaVersion: 3, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
-      contextVersion: 'structured-v3',
+      schemaVersion: 4, buildRevision: import.meta.env.VITE_BUILD_REVISION ?? 'unknown', sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
+      contextVersion: this.jev?.contextVersion ?? 'alive-jev-v1',
+      semanticAttempts: this.events.filter(e => e.type === 'semantic-inspection' && e.trace.outcome !== 'started'),
+      uniqueSemanticProviderAttempts: new Set(this.events.filter(e => e.type === 'semantic-inspection' && e.trace.outcome === 'started').map(e => e.type === 'semantic-inspection' ? e.trace.input.inspectionId : '')).size,
       jev: this.jev ?? null,
       refinement: this.refinement ? { ...this.refinement, style: 'presentation-v1' } : null,
       ...(this.source === 'speechmatics-voice' ? { configuration: this.configuration,
