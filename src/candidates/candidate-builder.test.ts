@@ -9,7 +9,7 @@ const evidence: EvidenceWindow = {
     id: `f${i}`, text, startMs: i * 100, endMs: i * 100,
   })),
 };
-const cue: Cue = { id: 'cue', text: 'One, two?', sourceFragmentIds: ['f0', 'f1'], createdAt: 0, updatedAt: 0 };
+const cue: Cue = { id: 'cue', text: 'One, two?', sourceRevision: 1, sourceFragmentIds: ['f0', 'f1'], createdAt: 0, updatedAt: 0 };
 
 describe('source-span candidates', () => {
   it('creates at most four exact, contiguous source spans without generating text', () => {

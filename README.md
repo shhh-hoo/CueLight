@@ -2,7 +2,7 @@
 
 A small teaching-attention experiment. A learner sees the teaching point worth keeping in view, not a running transcript.
 
-The React + TypeScript application supports microphone input through Speechmatics Realtime and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
+The React + TypeScript application supports microphone input through Speechmatics Realtime and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. Both Jev browser modes offer optional, non-blocking OpenAI text refinement, off by default. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
 
 ## Run it
 
@@ -15,7 +15,7 @@ npm run dev
 
 Open the local URL printed by Vite. Choose Science, History, Literature, Programming, or Mathematics, then select **Start replay**. Each 16.8-second sample includes filler, a new point, a clarification, and a different point. Pause/continue preserves replay timing. Reset clears evidence, Cues, diagnostics, and replay position. Changing lessons starts a fresh session.
 
-**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Text replay retains a bounded snapshot. Microphone sessions additionally retain an in-memory diagnostic journal that you can explicitly download before resetting or switching sources.
+**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Microphone and Jev text-replay sessions additionally retain an in-memory diagnostic journal that you can explicitly download before resetting or switching sources. Scripted replay retains its bounded snapshot.
 
 ```sh
 npm run build
@@ -64,6 +64,8 @@ Diagnostic `atMonoMs` values use main-thread `performance.now()`; Final receipt 
 
 ## Browser-free transcript replay
 
+This runner remains Jev-only. Enabling OpenAI in the browser or setting `OPENAI_API_KEY` does not add refinement calls to this CLI.
+
 ```sh
 # Offline plumbing check; never calls a model.
 npm run replay -- --input /path/to/transcript-map.json --to 65000 --out artifacts/offline-check
@@ -101,6 +103,7 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
 | `src/decision/` | Provider contract, validation, scripted mock, same-origin HTTP client, and server-only Jev adapter. |
 | `server/` | Bounded request validation, local Jev endpoints and Speechmatics token minting, mounted by `vite.config.ts` in dev and preview. |
 | `src/speechmatics/` | Official browser audio/SDK connection, natural Final adapter, source lifecycle and development session diagnostics. |
+| `src/refinement/` | Optional same-revision display refinement; separate presentation state, bounded scheduling and local HTTP client. |
 | `src/cue/cue-engine.ts` | Evidence intake, a single in-flight request, one dirty bit, version/session guards, diagnostics, and previous-Cue expiry. |
 | `src/cue/cue-reducer.ts` | Pure `QUIET`, `NEW_CUE`, and `UPDATE_CURRENT` transitions. |
 | `src/replay/` | Timer-driven finalized input and five fixtures with separate, explicit decision scripts. |
@@ -127,8 +130,8 @@ These temporal/source bounds allow progress; they do not recognize semantic fres
 Reset increments a session generation so an old result cannot match a new session's reused evidence version. If a request is pending at reset, the same Engine waits for it to settle before evaluating new evidence. Disposal disconnects the source, clears the expiry timer, and ignores late responses. A future custom provider must settle its promises; the Jev adapter has a hard five-second deadline.
 
 - **QUIET:** the Cue state is unchanged, including object identity. Existing previous-Cue expiry continues.
-- **NEW_CUE:** the current Cue becomes previous; the new Cue gets a new identity.
-- **UPDATE_CURRENT:** only the current text, provenance, and update timestamp change; identity and creation time remain. Without a current Cue, it behaves as NEW_CUE.
+- **NEW_CUE:** the current Cue becomes previous; the new Cue gets a new identity and `sourceRevision: 1`.
+- **UPDATE_CURRENT:** the current source text, provenance and update timestamp change, and `sourceRevision` increments; identity and creation time remain. Without a current Cue, it behaves as NEW_CUE.
 - Previous Cue expires four seconds after moving into that position, independent of speech and subsequent updates. Another NEW_CUE starts a new four-second transition. Current Cue never expires automatically.
 
 Pause stops future source emissions; it does not cancel a pending decision or suspend previous-Cue expiry.
@@ -156,6 +159,27 @@ Missing credentials, malformed JSON/schema, unknown options, HTTP/network failur
 
 **Historical live evaluations made 940 Jev decisions with 3 fallbacks.** Their mixed selection results and provider/publication timings are recorded in the unfinished local evaluation notes. They do not establish V3 semantic quality. Automated protocol checks use fake transport and credentials; the local HTTP bridge is tested over real loopback HTTP, and browser Jev tests intercept the local decision endpoint. Automated tests never call a model.
 
+## Optional OpenAI text refinement
+
+This implements the non-blocking refinement contract in the [CueLight design document](https://docs.google.com/document/d/1rTZiWCVA_7uPSBgMYyFycpPqJ8313Xu7knKF3ZswNcs/edit). Jev decides QUIET / NEW / UPDATE and publishes its selected source text immediately. OpenAI can subsequently simplify the wording of that exact Cue revision. It does not select teaching content or feed generated text back into evidence, candidates or Jev.
+
+1. Set `OPENAI_API_KEY` in this checkout's ignored `.env.local`, alongside `TYPESAFE_API_KEY` (and `SPEECHMATICS_API_KEY` for microphone input). Never prefix credentials with `VITE_`. Preserve existing settings and restart the local dev/preview server.
+2. Select microphone mode or **Jev** text replay. Enable **Text refinement · preserve meaning, simplify wording** in the teacher controls. It is off by default in every new session; missing OpenAI configuration does not block teaching. Enabling with an existing Cue may request refinement immediately; otherwise the next accepted source Cue triggers it. Configuration checks alone do not call a model.
+3. Start the microphone or text replay normally. The source Cue appears first. A usable current-revision result replaces its display wording once, without streaming words, creating a new Cue, or restarting the previous-Cue timer. Turning refinement off cancels pending work and keeps wording already displayed.
+4. In development, export the session journal from **Show diagnostics** before resetting. It records source/display text, source revisions, request context, the configured model, monotonic request/result times and applied/unchanged/stale/cancelled/failure outcomes. Source Cue-state and display-state updates are separate from browser paint.
+
+`Cue.text` remains the source text. `sourceRevision` advances with accepted Jev mutations. Separate display state holds `displayText`; applying refinement never changes the Engine's source Cue object, identity, timestamps or provenance. Results apply only when `(sessionId, cueId, sourceRevision)` still matches the current Cue. A later Jev UPDATE immediately displays its new source wording and invalidates the older refinement. Ordinary evidence arrival alone is not invalidation. When a Cue becomes previous, its last displayed wording is frozen; late results cannot edit the previous slot.
+
+The controller allows one request in flight and one latest pending revision. Intermediate pending revisions may be skipped. Each attempt has a three-second browser deadline; queue waiting is separate. No automatic retry is added. Reset, source/provider changes and page exit cancel immediately. Normal microphone stop finishes the existing ASR/Jev drain without waiting for OpenAI, then cancels remaining refinement. Text replay similarly finishes its Jev decisions before closing optional refinement. A new session starts with refinement off.
+
+The service uses the ordinary [Responses API](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create), with `store: false`, `stream: false`, `background: false`, a 1,024-output-token cap and strict `{ displayText }` structured output. The initial model is fixed to [`gpt-4.1-mini-2025-04-14`](https://developers.openai.com/api/docs/models/gpt-4.1-mini), a documented model with structured output support and no reasoning step. It is an initial choice, not an experimentally established optimum. The official interface was checked on 2026-09-21. `store: false` disables response storage for retrieval; it is not a claim of zero provider retention.
+
+`GET /api/openai/status` exposes only configuration readiness and model. `POST /api/openai/refine` is a same-origin loopback JSON endpoint in the existing Vite dev/preview server, with explicit Origin checks, a 256 KB body limit and a three-second deadline covering body reading and the upstream response. The source span is reconstructed from validated fragments. Source text plus at most two preceding context fragments is capped at 16,000 characters; larger inputs are visibly skipped without truncation. Context comes from the original Jev request snapshot, never later speech. The key and upstream errors are never returned to the browser or diagnostic journal; browser disconnect aborts the upstream fetch. A static host cannot provide these local endpoints.
+
+The refinement prompt requests one faithful paragraph in the original language(s), removing verbal filler and redundant wording while preserving all teaching points, numbers, units, negation, uncertainty and conditions. It forbids answering questions, importing another teaching point, translating, guessing formulas or repairing uncertain ASR. Returning the original text unchanged is valid. HTTP errors, refusals, incomplete output, invalid/empty results and timeouts retain the visible Cue and are distinguished in teacher diagnostics. [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) constrains format, not factual or semantic faithfulness; code does not prove that a rewrite preserves meaning.
+
+After the Reset E2E correction, the existing full check passed locally: type checking, production build, 82 unit tests and 14 browser tests. No new simulated test cases or paid model calls were added. Existing text fixture objects were updated for the source revision field; the existing Reset case reopens diagnostics before checking the cleared evidence version. Real Speechmatics/OpenAI operation, rewrite quality and reading disruption remain unverified and are left for the user's local trial.
+
 ## Verification
 
 ```sh
@@ -179,6 +203,6 @@ CI runs the same checks on pull requests, without model secrets or calls.
 
 ## Deliberate limits
 
-This is not closed captioning. Useful screen changes are not guaranteed for every fragment, and the learner never sees incoming transcript just because it arrived. Plain text is displayed verbatim; it may contain speech-like wording. Future formatting belongs between Cue and rendering, not inside decision logic.
+This is not closed captioning. Useful screen changes are not guaranteed for every fragment, and the learner never sees incoming transcript just because it arrived. Selected source text is displayed verbatim first; optional OpenAI refinement may subsequently change its display wording. Refinement belongs between the authoritative Cue and rendering, not inside decision logic.
 
-There is no semantic speech segmentation, OpenAI refinement, editable lesson corpus, durable lesson state, concept graph, scheduler, task queue, model-generated text, semantic evaluation benchmark, deployment, or standalone backend framework. The next product question is whether natural Speechmatics Finals and existing candidates let Jev choose useful content while someone teaches. Existing engineering checks do not establish real ASR performance or model quality.
+There is no semantic speech segmentation, editable lesson corpus, durable lesson state, concept graph, background job infrastructure, semantic evaluation benchmark, deployment, or standalone backend framework. Generated display text is limited to optional same-revision refinement. The next product questions are whether natural Speechmatics Finals and existing candidates let Jev choose useful content, and whether faithful refinement improves reading enough to justify a second text change. Existing engineering checks do not establish real ASR performance, refinement quality or classroom usefulness.

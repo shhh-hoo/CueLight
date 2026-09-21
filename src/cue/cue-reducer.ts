@@ -14,6 +14,7 @@ export function applyDecision(
       ...state,
       currentCue: Object.freeze({
         ...state.currentCue, text: candidate.text,
+        sourceRevision: state.currentCue.sourceRevision + 1,
         sourceFragmentIds: candidate.sourceFragmentIds, updatedAt: now,
       }),
     });
@@ -22,6 +23,7 @@ export function applyDecision(
     previousCue: state.currentCue,
     currentCue: Object.freeze({
       id: newCueId, text: candidate.text, sourceFragmentIds: candidate.sourceFragmentIds,
+      sourceRevision: 1,
       createdAt: now, updatedAt: now,
     }),
   });

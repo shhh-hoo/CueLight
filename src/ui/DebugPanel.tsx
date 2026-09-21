@@ -1,7 +1,8 @@
 import type { EngineSnapshot } from '../cue/cue-engine';
 import type { SessionDiagnostics } from '../speechmatics/session-diagnostics';
+import type { RefinementSnapshot } from '../refinement/cue-refinement';
 
-export default function DebugPanel({ snapshot, providerName, diagnostics }: { snapshot: EngineSnapshot; providerName: 'mock' | 'jev'; diagnostics?: SessionDiagnostics }) {
+export default function DebugPanel({ snapshot, providerName, diagnostics, refinement }: { snapshot: EngineSnapshot; providerName: 'mock' | 'jev'; diagnostics?: SessionDiagnostics; refinement?: RefinementSnapshot }) {
   const last = snapshot.lastDecision;
   const decision = last?.decision;
   const selected = decision && decision.action !== 'QUIET'
@@ -30,6 +31,7 @@ export default function DebugPanel({ snapshot, providerName, diagnostics }: { sn
       <h3>Selected candidate</h3><pre>{selected ? JSON.stringify(selected, null, 2) : 'None'}</pre>
       <h3>Current Cue</h3><pre>{JSON.stringify(snapshot.cues.currentCue, null, 2)}</pre>
       <h3>Previous Cue</h3><pre>{JSON.stringify(snapshot.cues.previousCue, null, 2)}</pre>
+      {refinement && <><h3>Optional refinement · source versus display</h3><pre>{JSON.stringify(refinement, null, 2)}</pre><p>Refinement timings and outcomes are recorded separately from the first Cue-state update. Neither measures browser paint.</p></>}
       <details><summary>Last request snapshot</summary><pre>{last ? JSON.stringify(last.input, null, 2) : 'No completed request.'}</pre></details>
     </aside>
   );

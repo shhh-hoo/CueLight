@@ -5,9 +5,12 @@ import type { CueDecision } from '../decision/types';
 import type { EvidenceFragment } from '../evidence/evidence-buffer';
 import { TRANSCRIPTION_CONFIG } from './config';
 import type { SourceObservation } from './speechmatics-source';
+import type { RefinementObservation } from '../refinement/types';
+import { MAX_REFINEMENT_CHARS, REFINEMENT_MODEL, REFINEMENT_TIMEOUT_MS } from '../refinement/types';
 
 type DiagnosticEvent =
   | SourceObservation
+  | RefinementObservation
   | { type: 'jev-request'; atMonoMs: number; requestId: number; input: DecisionInput }
   | { type: 'jev-return'; atMonoMs: number; requestId: number; decision: CueDecision | null; failed: boolean }
   | { type: 'cue-state'; atMonoMs: number; requestId: number | null; cues: CueState }
@@ -20,7 +23,7 @@ export class SessionDiagnostics {
   private requestIds = new WeakMap<DecisionInput, number>();
   private requestSequence = 0;
   private recordingFailed = false;
-  constructor(readonly sessionId: string) {}
+  constructor(readonly sessionId: string, private readonly source: 'speechmatics-final' | 'text-replay' = 'speechmatics-final') {}
   private now() { return performance.now(); }
   private safely(record: () => void) {
     try { record(); } catch { this.recordingFailed = true; }
@@ -32,6 +35,10 @@ export class SessionDiagnostics {
       this.events.push(event);
       if (event.type === 'final' && event.result.fragment) this.fragments.push(event.result.fragment);
     });
+  };
+
+  observeRefinement = (event: RefinementObservation) => {
+    this.safely(() => this.events.push(event));
   };
 
   async decide(input: DecisionInput, run: () => Promise<CueDecision>) {
@@ -53,8 +60,13 @@ export class SessionDiagnostics {
   attach(engine: CueEngine) {
     let cues = engine.getSnapshot().cues;
     let decision = engine.getSnapshot().lastDecision;
+    let incoming = engine.getSnapshot().incoming;
     return engine.subscribe(() => this.safely(() => {
       const snapshot = engine.getSnapshot();
+      if (this.source === 'text-replay' && snapshot.incoming && snapshot.incoming !== incoming) {
+        incoming = snapshot.incoming;
+        this.fragments.push(incoming);
+      }
       if (snapshot.cues !== cues) {
         cues = snapshot.cues;
         this.events.push({ type: 'cue-state', atMonoMs: this.now(), cues,
@@ -71,12 +83,16 @@ export class SessionDiagnostics {
 
   export() {
     return {
-      schemaVersion: 1, sessionId: this.sessionId, source: 'speechmatics-final', recordingFailed: this.recordingFailed,
-      contextVersion: 'structured-v3', configuration: TRANSCRIPTION_CONFIG,
-      sdkVersions: { audio: '2.0.4', realtime: '8.5.1' },
+      schemaVersion: 2, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
+      contextVersion: 'structured-v3',
+      refinement: { model: REFINEMENT_MODEL, timeoutMs: REFINEMENT_TIMEOUT_MS, maxInputChars: MAX_REFINEMENT_CHARS,
+        style: 'faithful-concise', defaultEnabled: false },
+      ...(this.source === 'speechmatics-final' ? { configuration: TRANSCRIPTION_CONFIG,
+        sdkVersions: { audio: '2.0.4', realtime: '8.5.1' } } : {}),
       timing: {
         local: 'atMonoMs: main-thread performance.now() milliseconds; Final time is delivery to the source adapter',
-        source: 'startMs/endMs: Speechmatics audio timeline; raw startSeconds/endSeconds retained',
+        source: this.source === 'speechmatics-final' ? 'startMs/endMs: Speechmatics audio timeline; raw startSeconds/endSeconds retained'
+          : 'startMs/endMs: text replay source timeline',
         limits: 'No audio-to-local-clock mapping, audio-end latency, browser paint measurement or teaching-point-end inference.',
       },
       fragments: [...this.fragments], events: [...this.events],

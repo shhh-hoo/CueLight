@@ -32,7 +32,11 @@ export function validateInput(value: unknown): DecisionInput {
         !Array.isArray(cue.sourceFragmentIds) || cue.sourceFragmentIds.length === 0 ||
         cue.sourceFragmentIds.length > MAX_FRAGMENTS || !cue.sourceFragmentIds.every(id) ||
         new Set(cue.sourceFragmentIds).size !== cue.sourceFragmentIds.length) return fail();
-    currentCue = { id: cue.id, text: cue.text, createdAt: cue.createdAt, updatedAt: cue.updatedAt, sourceFragmentIds: cue.sourceFragmentIds };
+    // Historical text replay inputs predate source revisions. Live Cues always carry one.
+    const sourceRevision = cue.sourceRevision === undefined ? 1 : cue.sourceRevision;
+    if (!Number.isSafeInteger(sourceRevision) || (sourceRevision as number) < 1) return fail();
+    currentCue = { id: cue.id, text: cue.text, sourceRevision: sourceRevision as number,
+      createdAt: cue.createdAt, updatedAt: cue.updatedAt, sourceFragmentIds: cue.sourceFragmentIds };
   }
   const candidates = buildCandidates(evidence, currentCue);
   if (!Array.isArray(value.candidates) || value.candidates.length !== candidates.length) return fail();

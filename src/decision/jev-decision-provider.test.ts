@@ -15,7 +15,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('Jev contract, fake transport only', () => {
   it('labels only arrived evidence and preserves current provenance without inventing evicted source text', () => {
-    const currentCue = { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 };
+    const currentCue = { id: 'c1', text: 'Earlier point.', sourceRevision: 1, sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 };
     const request = buildJevRequest({ ...input, currentCue });
     expect(request.body.state).toMatchObject({
       latestInput: input.evidence.fragments[0], backgroundEvidence: [],
@@ -36,7 +36,7 @@ describe('Jev contract, fake transport only', () => {
     expect(request.body.state.currentCue).toBeNull();
     expect(request.body.state.candidates[0]?.text).toBe(input.candidates[0]!.text);
     expect(request.options.get('NEW_CUE_0')).toEqual({ action: 'NEW_CUE', candidateId: '["f1"]' });
-    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } });
+    const withCurrent = buildJevRequest({ ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceRevision: 1, sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } });
     expect([...withCurrent.options.keys()]).toEqual(['QUIET', 'NEW_CUE_0', 'UPDATE_CURRENT_0']);
     expect(withCurrent.options.get('UPDATE_CURRENT_0')).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
     expect(withCurrent.body.questions.cue.criteria.UPDATE_CURRENT_0).toContain('does not append');
@@ -79,7 +79,7 @@ describe('Jev contract, fake transport only', () => {
   it('accepts QUIET and a valid UPDATE choice', async () => {
     const quiet = new JevDecisionProvider({ apiKey: 'test', transport: vi.fn<typeof fetch>().mockResolvedValue(Response.json(answer('QUIET', { QUIET: 1, NEW_CUE_0: 0 }))) });
     expect(await quiet.decide(input)).toEqual({ action: 'QUIET' });
-    const withCurrent = { ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } };
+    const withCurrent = { ...input, currentCue: { id: 'c1', text: 'Earlier point.', sourceRevision: 1, sourceFragmentIds: ['f0'], createdAt: 0, updatedAt: 0 } };
     const update = new JevDecisionProvider({ apiKey: 'test', transport: vi.fn<typeof fetch>().mockResolvedValue(Response.json({ answers: { cue: { type: 'choice', choice: 'UPDATE_CURRENT_0', confidence: 1, probabilities: { QUIET: 0, NEW_CUE_0: 0, UPDATE_CURRENT_0: 1 } } } })) });
     expect(await update.decide(withCurrent)).toEqual({ action: 'UPDATE_CURRENT', candidateId: '["f1"]' });
   });
