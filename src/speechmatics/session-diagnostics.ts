@@ -2,6 +2,7 @@ import type { CueEngine, DecisionRecord } from '../cue/cue-engine';
 import type { CueState } from '../cue/types';
 import type { DecisionInput } from '../decision/decision-provider';
 import type { CueDecision } from '../decision/types';
+import type { JevChoiceDiagnostics } from '../decision/jev-choice';
 import type { EvidenceFragment } from '../evidence/evidence-buffer';
 import type { VoiceConfiguration } from './config';
 import type { SourceObservation } from './speechmatics-source';
@@ -13,7 +14,7 @@ type DiagnosticEvent =
   | SourceObservation
   | RefinementObservation
   | { type: 'jev-request'; atMonoMs: number; requestId: number; input: DecisionInput }
-  | { type: 'jev-return'; atMonoMs: number; requestId: number; decision: CueDecision | null; failed: boolean }
+  | { type: 'jev-return'; atMonoMs: number; requestId: number; decision: CueDecision | null; diagnostics: JevChoiceDiagnostics | null; failed: boolean }
   | { type: 'cue-state'; atMonoMs: number; requestId: number | null; cues: CueState }
   | { type: 'decision-outcome'; atMonoMs: number; requestId: number | null; outcome: DecisionRecord['outcome']; discardReason: DecisionRecord['discardReason']; failed: boolean };
 
@@ -23,6 +24,7 @@ export class SessionDiagnostics {
   private fragments: EvidenceFragment[] = [];
   private requestIds = new WeakMap<DecisionInput, number>();
   private requestSequence = 0;
+  private choices = new WeakMap<DecisionInput, JevChoiceDiagnostics>();
   private configuration: VoiceConfiguration | undefined;
   private refinement: RefinementConfiguration | undefined;
   private jev: JevConfiguration | undefined;
@@ -56,6 +58,10 @@ export class SessionDiagnostics {
     });
   };
 
+  observeJevChoice = (input: DecisionInput, diagnostics: JevChoiceDiagnostics) => {
+    this.safely(() => this.choices.set(input, diagnostics));
+  };
+
   async decide(input: DecisionInput, run: () => Promise<CueDecision>) {
     const requestId = ++this.requestSequence;
     this.safely(() => {
@@ -64,10 +70,10 @@ export class SessionDiagnostics {
     });
     try {
       const decision = await run();
-      this.safely(() => this.events.push({ type: 'jev-return', atMonoMs: this.now(), requestId, decision, failed: false }));
+      this.safely(() => this.events.push({ type: 'jev-return', atMonoMs: this.now(), requestId, decision, diagnostics: this.choices.get(input) ?? null, failed: false }));
       return decision;
     } catch (error) {
-      this.safely(() => this.events.push({ type: 'jev-return', atMonoMs: this.now(), requestId, decision: null, failed: true }));
+      this.safely(() => this.events.push({ type: 'jev-return', atMonoMs: this.now(), requestId, decision: null, diagnostics: null, failed: true }));
       throw error;
     }
   }

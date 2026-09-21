@@ -22,7 +22,7 @@ function ReplaySession({ fixture, providerName }: { fixture: ReplayFixture; prov
   useEffect(() => {
     const sessionId = crypto.randomUUID();
     const diagnostics = import.meta.env.DEV && providerName === 'jev' ? new SessionDiagnostics(sessionId, 'text-replay') : undefined;
-    const provider = providerName === 'jev' ? new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration) : new MockDecisionProvider(fixture.script);
+    const provider = providerName === 'jev' ? new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration, diagnostics?.observeJevChoice) : new MockDecisionProvider(fixture.script);
     const cancel = () => { if (provider instanceof HttpDecisionProvider) provider.cancel(); };
     const engine = new CueEngine({ decide: input => diagnostics
       ? diagnostics.decide(input, () => provider.decide(input)) : provider.decide(input) });

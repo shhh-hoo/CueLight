@@ -6,7 +6,7 @@ from gateway import create_app
 
 class ConfigTests(unittest.TestCase):
     def test_default_and_both_official_presets_with_required_overlay(self):
-        self.assertEqual(parse_config({}).preset, 'captions')
+        self.assertEqual(parse_config({}).preset, 'scribe')
         for name, preset in [('captions', VoiceAgentConfigPreset.CAPTIONS), ('scribe', VoiceAgentConfigPreset.SCRIBE)]:
             for rate in (8000, 16000):
                 settings = parse_config({'SPEECHMATICS_VOICE_PRESET': name, 'SPEECHMATICS_API_KEY': 'secret-test'})

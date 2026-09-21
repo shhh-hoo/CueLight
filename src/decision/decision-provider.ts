@@ -20,7 +20,8 @@ export function validateDecision(value: unknown, candidates: readonly Candidate[
   if (value.action === 'QUIET') return { action: 'QUIET' };
   if ((value.action === 'NEW_CUE' || value.action === 'UPDATE_CURRENT') &&
       'candidateId' in value && typeof value.candidateId === 'string' &&
-      candidates.some(candidate => candidate.id === value.candidateId)) {
+      candidates.some(candidate => candidate.id === value.candidateId &&
+        (value.action !== 'NEW_CUE' || !candidate.updateOnly))) {
     return { action: value.action, candidateId: value.candidateId };
   }
   throw new Error('Provider action or candidate ID is not valid for this request.');

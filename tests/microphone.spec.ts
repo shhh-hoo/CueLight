@@ -1,4 +1,5 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { buildJevOptions } from '../src/decision/jev-choice';
 
 const configuration = { preset: 'captions', language: 'cmn_en', operatingPoint: 'enhanced',
   audioEncoding: 'pcm_f32le', channels: 1, voiceVersion: '0.2.8', rtVersion: '1.1.1', sampleRate: 16000 };
@@ -45,7 +46,9 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
     calls++;
     const input = route.request().postDataJSON();
     if (calls === 2) await pending;
+    const probabilities = Object.fromEntries([...buildJevOptions(input).keys()].map(key => [key, key === 'NEW_CUE_0' ? 0.88 : key === 'QUIET' ? 0.12 : 0]));
     await route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id },
+      diagnostics: { choice: 'NEW_CUE_0', confidence: 0.73, probabilities },
       configuration: { model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' } } });
   });
   const sessions = await setup(page, undefined, { ...configuration, preset: 'scribe' });
@@ -83,6 +86,12 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
   expect(json).not.toMatch(/apiKey|Authorization|API_KEY/);
   expect(trace.fragments).toHaveLength(3);
   expect(trace.events.filter((e: { type: string }) => e.type === 'jev-request')).toHaveLength(2);
+  const returns = trace.events.filter((e: { type: string }) => e.type === 'jev-return');
+  expect(returns).toHaveLength(2);
+  for (const result of returns) {
+    expect(result.diagnostics).toMatchObject({ choice: 'NEW_CUE_0', confidence: 0.73,
+      probabilities: { QUIET: 0.12, NEW_CUE_0: 0.88 } });
+  }
   expect(trace.segmentDecisions.map((s: { triggeredRequestIds: number[] }) => s.triggeredRequestIds.length)).toEqual([1, 1, 1]);
 });
 

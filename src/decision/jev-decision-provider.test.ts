@@ -66,8 +66,10 @@ describe('Jev contract, fake transport only', () => {
 
   it('sends the verified endpoint, Bearer authentication and selectable model, and maps a choice to a supplied ID', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json(answer()));
-    const provider = new JevDecisionProvider({ apiKey: 'fake-test-key', model: 'test-model', transport });
+    const onChoice = vi.fn();
+    const provider = new JevDecisionProvider({ apiKey: 'fake-test-key', model: 'test-model', transport, onChoice });
     expect(await provider.decide(input)).toEqual({ action: 'NEW_CUE', candidateId: '["f1"]' });
+    expect(onChoice).toHaveBeenCalledWith({ choice: 'NEW_CUE_0', confidence: 0.9, probabilities: { QUIET: 0.1, NEW_CUE_0: 0.9 } });
     expect(transport).toHaveBeenCalledOnce();
     const [url, init] = transport.mock.calls[0]!;
     expect(url).toBe(JEV_ENDPOINT);
@@ -102,16 +104,20 @@ describe('Jev contract, fake transport only', () => {
   ])('invalid responses cannot alter Cue text (%j)', async value => {
     const onError = vi.fn();
     const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json(value));
-    expect(await new JevDecisionProvider({ apiKey: 'test', transport, onError }).decide(input)).toEqual({ action: 'QUIET' });
+    const onChoice = vi.fn();
+    expect(await new JevDecisionProvider({ apiKey: 'test', transport, onError, onChoice }).decide(input)).toEqual({ action: 'QUIET' });
+    expect(onChoice).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledOnce();
   });
 
   it('network rejection and non-JSON response are safe fallbacks', async () => {
     for (const transport of [
-      vi.fn<typeof fetch>().mockRejectedValue(new Error('Offline')),
+      vi.fn<typeof fetch>().mockRejectedValue(new Error('SECRET transport details')),
       vi.fn<typeof fetch>().mockResolvedValue(new Response('not JSON')),
     ]) {
-      expect(await new JevDecisionProvider({ apiKey: 'test', transport }).decide(input)).toEqual({ action: 'QUIET' });
+      const onError = vi.fn();
+      expect(await new JevDecisionProvider({ apiKey: 'test', transport, onError }).decide(input)).toEqual({ action: 'QUIET' });
+      expect(onError).toHaveBeenCalledWith('Jev returned no usable decision.');
       expect(transport).toHaveBeenCalledOnce();
     }
   });
@@ -145,6 +151,30 @@ describe('Jev contract, fake transport only', () => {
     const transport = vi.fn<typeof fetch>().mockRejectedValue(new Error('Offline'));
     const provider = new JevDecisionProvider({ apiKey: 'test', transport, onError: () => { throw new Error('Diagnostic sink failed'); } });
     expect(await provider.decide(input)).toEqual({ action: 'QUIET' });
+  });
+
+  it('observes valid metadata without allowing the sink to change the decision', async () => {
+    const provider = new JevDecisionProvider({ apiKey: 'test',
+      transport: vi.fn<typeof fetch>().mockResolvedValue(Response.json(answer())),
+      onChoice: () => { throw new Error('Diagnostic sink failed'); },
+    });
+    expect(await provider.decide(input)).toEqual({ action: 'NEW_CUE', candidateId: '["f1"]' });
+  });
+
+  it('does not fabricate or record late choice metadata after a timeout', async () => {
+    vi.useFakeTimers();
+    let release!: (response: Response) => void;
+    const transport = vi.fn<typeof fetch>().mockImplementation(() => new Promise(resolve => { release = resolve; }));
+    const onChoice = vi.fn();
+    const provider = new JevDecisionProvider({ apiKey: 'test', transport, onChoice, timeoutMs: 100 });
+    const result = provider.decide(input);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await result).toEqual({ action: 'QUIET' });
+    release(Response.json(answer()));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onChoice).not.toHaveBeenCalled();
+    await provider.decide({ ...input, candidates: [] });
+    expect(onChoice).not.toHaveBeenCalled();
   });
 
   it('an already-cancelled caller does not issue an upstream request', async () => {

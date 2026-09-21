@@ -39,3 +39,24 @@ it('cancel aborts the browser request without retrying; the server owns the dead
   expect(transport).toHaveBeenCalledOnce();
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('only journals allowlisted, matching choice metadata and isolates a failing observer', async () => {
+  const diagnostics = { choice: 'NEW_CUE_0', confidence: 0.63, probabilities: { QUIET: 0.2, NEW_CUE_0: 0.8 } };
+  const observe = vi.fn(() => { throw new Error('Sink failed'); });
+  const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+    decision: { action: 'NEW_CUE', candidateId: 'c1' }, diagnostics: { ...diagnostics, raw: 'SECRET' },
+  }));
+  expect(await new HttpDecisionProvider(transport, undefined, observe).decide(input)).toEqual({ action: 'NEW_CUE', candidateId: 'c1' });
+  expect(observe).toHaveBeenCalledWith(input, diagnostics);
+  for (const invalid of [
+    { ...diagnostics, choice: 'QUIET' },
+    { ...diagnostics, choice: 'NEW_CUE_99' },
+    { ...diagnostics, confidence: 2 },
+    { ...diagnostics, probabilities: { QUIET: 0.1, NEW_CUE_0: 0.8, raw: 'SECRET' } },
+  ]) {
+    const observe = vi.fn();
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ decision: { action: 'NEW_CUE', candidateId: 'c1' }, diagnostics: invalid }));
+    await expect(new HttpDecisionProvider(transport, undefined, observe).decide(input)).rejects.toThrow();
+    expect(observe).not.toHaveBeenCalled();
+  }
+});

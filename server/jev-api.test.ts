@@ -4,13 +4,14 @@ import { buildCandidates } from '../src/candidates/candidate-builder';
 import { CueEngine } from '../src/cue/cue-engine';
 import { HttpDecisionProvider } from '../src/decision/http-decision-provider';
 import { appendEvidence, emptyEvidence } from '../src/evidence/evidence-buffer';
+import { SessionDiagnostics } from '../src/speechmatics/session-diagnostics';
 import { replayFixtures } from '../src/replay/replay-fixtures';
 import { createJevMiddleware, MAX_REQUEST_BYTES } from './jev-api';
 
 const fragment = { id: 'f1', text: 'A Python list is mutable.', startMs: 0, endMs: 1 };
 const evidence = appendEvidence(emptyEvidence(), fragment);
 const input = { evidence, candidates: buildCandidates(evidence, null), currentCue: null };
-const answer = { answers: { cue: { type: 'choice', choice: 'NEW_CUE_0', confidence: 1, probabilities: { QUIET: 0, NEW_CUE_0: 1 } } } };
+const answer = { privateBody: 'DO-NOT-EXPORT', answers: { cue: { type: 'choice', choice: 'NEW_CUE_0', confidence: 0.73, probabilities: { QUIET: 0.12, NEW_CUE_0: 0.88 }, privateField: 'DO-NOT-EXPORT' } } };
 const servers: Server[] = [];
 
 async function bridge(options: Parameters<typeof createJevMiddleware>[0]) {
@@ -45,9 +46,11 @@ describe('real local HTTP bridge with fake upstream Jev', () => {
     const response = await fetch(`${url}/api/jev/status`);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ configured: true, model: 'jev-latest', timeoutMs: 5000, contextVersion: 'structured-v3' });
-    const provider = new HttpDecisionProvider((path, init) => fetch(`${url}${path}`, init));
-    const engine = new CueEngine(provider);
-    engine.accept(fragment);
+    const journal = new SessionDiagnostics('test', 'text-replay');
+    const provider = new HttpDecisionProvider((path, init) => fetch(`${url}${path}`, init), undefined, journal.observeJevChoice);
+    const engine = new CueEngine({ decide: input => journal.decide(input, () => provider.decide(input)) });
+    const detach = journal.attach(engine);
+    engine.accept({ ...fragment, speakerId: 'S1', language: 'en' });
     await vi.waitFor(() => expect(engine.getSnapshot().status).toBe('idle'));
     expect(engine.getSnapshot().cues.currentCue?.text).toBe(fragment.text);
     expect(engine.getSnapshot().lastDecision?.outcome).toBe('applied');
@@ -55,7 +58,16 @@ describe('real local HTTP bridge with fake upstream Jev', () => {
     expect(transport).toHaveBeenCalledOnce();
     expect(transport.mock.calls[0]![0]).toBe('https://api.typesafe.ai/v1/systemone');
     expect(transport.mock.calls[0]![1]?.headers).toHaveProperty('Authorization', 'Bearer fake-local-key');
-    engine.dispose();
+    const state = JSON.parse(transport.mock.calls[0]![1]!.body as string).state;
+    expect(state.latestInput).toMatchObject({ speakerId: 'S1', language: 'en' });
+    const trace = journal.export();
+    expect(trace.events.find(e => e.type === 'jev-return')).toMatchObject({ requestId: 1, failed: false,
+      decision: { action: 'NEW_CUE', candidateId: input.candidates[0]!.id },
+      diagnostics: { choice: 'NEW_CUE_0', confidence: 0.73, probabilities: { QUIET: 0.12, NEW_CUE_0: 0.88 } },
+    });
+    expect(JSON.stringify(trace)).not.toMatch(/fake-local-key|Authorization|DO-NOT-EXPORT|privateField|privateBody/);
+    expect(trace.segmentDecisions[0]?.requests[0]?.result).toHaveProperty('diagnostics.confidence', 0.73);
+    detach(); engine.dispose();
   });
 
   it.each([
