@@ -1,5 +1,6 @@
 import { refinementConfiguration, type RefinementConfiguration } from '../runtime-config';
 import { refinementMessages, type RefinementInput, type RefinementReply } from './types';
+import { parsePresentationReply } from './presentation';
 
 export async function refineCue(input: RefinementInput, signal: AbortSignal, config: RefinementConfiguration,
   observeConfiguration: (config: RefinementConfiguration) => void): Promise<RefinementReply> {
@@ -18,11 +19,9 @@ export async function refineCue(input: RefinementInput, signal: AbortSignal, con
       return { error: data.error as Exclude<keyof typeof refinementMessages, 'too-large'> };
     }
     if (!response.ok) return { error: 'unavailable' };
-    if (!data || typeof data !== 'object' || !('displayText' in data) ||
-        typeof data.displayText !== 'string' || !data.displayText.trim() || data.displayText.length > config.maxInputChars) {
-      return { error: 'invalid' };
-    }
-    return { displayText: data.displayText };
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return { error: 'invalid' };
+    const { configuration: _configuration, ...reply } = data as Record<string, unknown>;
+    return parsePresentationReply(reply) ?? { error: 'invalid' };
   } catch {
     return { error: 'unavailable' };
   }

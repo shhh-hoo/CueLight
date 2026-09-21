@@ -107,7 +107,7 @@ export class SessionDiagnostics {
       schemaVersion: 3, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
       contextVersion: 'structured-v3',
       jev: this.jev ?? null,
-      refinement: this.refinement ? { ...this.refinement, style: 'faithful-concise' } : null,
+      refinement: this.refinement ? { ...this.refinement, style: 'presentation-v1' } : null,
       ...(this.source === 'speechmatics-voice' ? { configuration: this.configuration,
         sdkVersions: { audio: '2.0.4', voice: this.configuration?.voiceVersion, rt: this.configuration?.rtVersion } } : {}),
       timing: {

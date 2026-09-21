@@ -26,11 +26,11 @@ export function RefinementControls({ refinement }: { refinement: CueRefinement }
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [attempt, refinement]);
   return <section className="provider-setup" aria-label="Text refinement controls">
-    <label><input type="checkbox" checked={snapshot.enabled} disabled={!configured || snapshot.stopped}
-      onChange={event => refinement.setEnabled(event.target.checked)} /> Text refinement · preserve meaning, simplify wording</label>
+    <label><input type="checkbox" checked={snapshot.enabled} disabled={!configured || (snapshot.stopped && !snapshot.enabled)}
+      onChange={event => refinement.setEnabled(event.target.checked)} /> Text refinement · preserve meaning, clarify structure</label>
     <p>{message}</p>
     {!configured && <button onClick={() => setAttempt(value => value + 1)}>Check OpenAI again</button>}
-    {snapshot.busy && !snapshot.stopped && snapshot.enabled && <p role="status">Refining wording…</p>}
+    {snapshot.busy && !snapshot.stopped && snapshot.enabled && <p role="status">Preparing presentation…</p>}
     {snapshot.error && <p role="status">{snapshot.error}</p>}
   </section>;
 }

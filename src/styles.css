@@ -31,12 +31,35 @@ button:disabled { cursor: default; opacity: .6; }
 .previous-slot { min-height: 105px; }
 .previous-cue { border-left: 2px solid #dce1d1; padding-left: 18px; max-width: 710px; color: #77806f; }
 .previous-cue .eyebrow { margin: 0 0 8px; color: #78816f; font-size: 9px; }
-.previous-cue > p:last-child { font-family: 'Newsreader', Georgia, serif; font-size: 18px; line-height: 1.5; margin: 0 0 22px; }
+.previous-cue .cue-text { font-family: 'Newsreader', Georgia, serif; font-size: 18px; line-height: 1.5; margin: 0 0 22px; }
 .current-slot { flex: 1; display: flex; align-items: center; padding: 24px 0 46px; min-width: 0; }
-.current-cue { max-width: 860px; }
+.current-cue { width: 100%; max-width: 860px; min-width: 0; }
 .current-cue .eyebrow { display: flex; gap: 9px; align-items: center; color: #5c7349; margin: 0 0 24px; }
 .cue-dot { width: 6px; height: 6px; background: #77964c; border-radius: 50%; }
 .cue-text { font-family: 'Newsreader', Georgia, serif; font-size: clamp(28px, 3.25vw, 42px); line-height: 1.28; letter-spacing: -.7px; margin: 0; white-space: pre-wrap; }
+/* A presentation is one React update. Long content grows the surface and page. */
+.cue-presentation { display: flex; flex-direction: column; gap: 25px; min-width: 0; }
+.cue-presentation .cue-text, .cue-list { font-size: clamp(25px, 2.7vw, 35px); line-height: 1.35; }
+.cue-list { font-family: 'Newsreader', Georgia, serif; margin: 0; padding-left: 1em; }
+.cue-list li { padding-left: .15em; }
+.cue-list li + li { margin-top: .4em; }
+.cue-list li::marker { color: #789750; font-size: .65em; }
+.cue-item-label { font-weight: 600; }
+.cue-chain { list-style: none; display: flex; align-items: stretch; gap: 0; padding: 0; margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: clamp(21px, 2.2vw, 28px); line-height: 1.35; }
+.cue-chain > li { display: flex; flex: 1 1 0; align-items: center; min-width: 0; }
+.cue-chain-node { flex: 1 1 0; min-width: 0; padding: 14px 12px; border: 1px solid #dce1d1; border-radius: 8px; background: #f3f5eb; white-space: pre-wrap; }
+.cue-chain-link { flex: 0 0 76px; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 8px; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; font-size: 11px; line-height: 1.4; }
+.cue-chain-symbol { font-size: 23px; line-height: 1; }
+.cue-chain-relationship { font-weight: 600; }
+.cue-chain-link-sequence { color: #6d776c; }
+.cue-chain-link-causes { color: #6a4834; }
+.cue-chain-link-becomes { color: #5d507b; }
+.cue-chain-link-moves_to { color: #365e72; }
+.cue-chain-label { font-size: 11px; white-space: pre-wrap; }
+.previous-cue .cue-presentation { gap: 14px; margin-bottom: 22px; }
+.previous-cue .cue-text, .previous-cue .cue-list, .previous-cue .cue-chain { font-size: 18px; line-height: 1.5; letter-spacing: 0; }
+.previous-cue .cue-presentation .cue-text { margin: 0; }
+.previous-cue .cue-chain-node { padding: 10px; }
 .empty-cue { margin: -52px auto 0; text-align: center; }
 .empty-mark { color: #8aa56a; font-size: 30px; }
 .empty-cue h1 { font-family: 'Newsreader', Georgia, serif; font-size: 44px; font-weight: 400; letter-spacing: -1px; line-height: 1.12; margin: 18px 0 16px; }
@@ -79,8 +102,16 @@ button:disabled { cursor: default; opacity: .6; }
   .replay-status { margin: 0; }
   .cue-surface { padding: 24px 25px 20px; min-height: 470px; }
   .previous-slot { min-height: 85px; }
-  .previous-cue > p:last-child { font-size: 16px; }
+  .previous-cue .cue-text, .previous-cue .cue-list, .previous-cue .cue-chain { font-size: 16px; }
   .cue-text { font-size: 29px; letter-spacing: -.4px; }
+  .cue-presentation .cue-text, .cue-list { font-size: 25px; }
+  .cue-chain { flex-direction: column; font-size: 25px; }
+  .cue-chain > li { flex-direction: column; align-items: stretch; }
+  .cue-chain-node { flex-basis: auto; }
+  .cue-chain-link { flex-basis: auto; align-self: center; max-width: 100%; padding: 10px 14px; }
+  .cue-chain-symbol { transform: rotate(90deg); }
+  .cue-chain-link-sequence .cue-chain-symbol { transform: none; }
+  .cue-chain-label { max-width: 180px; }
   .empty-cue h1 { font-size: 35px; }
   .replay-controls { align-items: flex-start; flex-direction: column; gap: 5px; }
   .replay-controls > p { padding-left: 2px; }

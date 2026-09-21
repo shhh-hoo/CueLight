@@ -26,7 +26,7 @@ export function parseRuntimeConfig(env: Env) {
     timeoutMs: integer(env, 'JEV_TIMEOUT_MS', 5000, 100, 60000), contextVersion: 'structured-v3',
   });
   const refinement: RefinementConfiguration = Object.freeze({
-    model: model(env, 'OPENAI_REFINEMENT_MODEL', 'gpt-4.1-mini-2025-04-14'),
+    model: model(env, 'OPENAI_REFINEMENT_MODEL', 'gpt-5.6-luna'),
     timeoutMs: integer(env, 'OPENAI_REFINEMENT_TIMEOUT_MS', 6000, 100, 60000),
     maxInputChars: integer(env, 'OPENAI_REFINEMENT_MAX_INPUT_CHARS', 16000, 1, 32000),
     defaultEnabled: boolean(env, 'OPENAI_REFINEMENT_ENABLED_DEFAULT', false),
