@@ -200,7 +200,7 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         if (op.type === 'EXTEND') check(op.removePartIds.length === 0 && op.parts.every(p => !(p.replacesPartIds?.length) && !old.some(previous => previous.partId === p.partId)), 'EXTEND only adds new parts.');
         for (const part of op.parts) check((part.replacesPartIds ?? []).every(id => old.some(p => p.partId === id)), 'Unknown replaced part.');
         const replaced = new Set([...op.removePartIds, ...op.parts.flatMap(p => [p.partId, ...(p.replacesPartIds ?? [])])]);
-        if (old.some(part => replaced.has(part.partId) && teacherEstablished(part))) {
+        if (old.some(teacherEstablished)) {
           check(teacherGrounded(op.basis, requireRoleReads(op.basis).map(role => role.bindingId)), 'Semantic mutation requires teacher-grounded correction evidence.');
         }
         // Each replacement anchors at its earliest replaced position. Disjoint

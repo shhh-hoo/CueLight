@@ -49,13 +49,13 @@ describe('configured source authority', () => {
 });
 
 describe('authority of semantic mutation evidence', () => {
-  it.each(['delete', 'revise', 'withdraw'] as const)('student evidence cannot %s teacher semantics, even with valid surviving parts', action => {
+  it.each(['delete', 'revise', 'append', 'withdraw'] as const)('student evidence cannot %s teacher semantics, even with valid surviving parts', action => {
     const h = classroom(), a = h.create();
     h.accept([{ type: 'BIND_ROLE', binding: { bindingId: 'student', revision: 1, subject: { kind: 'capture', id: 'student-mic' },
       role: 'student', basis: 'configured', basisRefs: ['input-config'], sourceRanges: [] } }], { readSet: { roles: { student: 0 } } });
     const before = h.store.getSnapshot();
     const op: SemanticOperation = action === 'withdraw' ? { type: 'WITHDRAW', cueId: a, basis: [h.ref('s')] } :
-      { type: 'REVISE', cueId: a, basis: [h.ref('s')], parts: action === 'revise' ? [h.asserted('assertion', 'fix')] : [],
+      { type: 'REVISE', cueId: a, basis: [h.ref('s')], parts: action === 'revise' ? [h.asserted('assertion', 'fix')] : action === 'append' ? [h.part('student-extension', 's')] : [],
         removePartIds: action === 'delete' ? ['condition'] : [] };
     expect(() => h.accept([op], { readSet: { ...h.read(a), roles: { configured: 1, student: 1 } } })).toThrow(/teacher-grounded/);
     expect(h.store.getSnapshot()).toBe(before);
