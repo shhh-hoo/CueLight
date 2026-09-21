@@ -59,7 +59,7 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
   const refined = useSyncExternalStore(refinement.subscribe, refinement.getSnapshot);
   const [jevReady, setJevReady] = useState(false);
   const [speechmaticsReady, setSpeechmaticsReady] = useState(false);
-  const [setupMessage, setSetupMessage] = useState('Checking Speechmatics configuration…');
+  const [setupMessage, setSetupMessage] = useState('Checking Voice gateway…');
   const [attempt, setAttempt] = useState(0);
   const [debugOpen, setDebugOpen] = useState(false);
   useEffect(() => {
@@ -69,15 +69,15 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
     setSpeechmaticsReady(false);
     void (async () => {
       try {
-        const response = await fetch('/api/speechmatics/status', { signal: controller.signal });
+        const response = await fetch('/api/voice/status', { signal: controller.signal });
         const data: unknown = await response.json();
         if (!response.ok || !data || typeof data !== 'object' || !('configured' in data) || typeof data.configured !== 'boolean') throw new Error();
         if (!active) return;
         setSpeechmaticsReady(data.configured);
         setSetupMessage(data.configured
-          ? 'Speechmatics ready · Mandarin / English. Starting uses your Speechmatics and TypeSafe accounts.'
-          : 'Add SPEECHMATICS_API_KEY to .env.local and restart the local server. Your key stays on the server.');
-      } catch { if (active) setSetupMessage('Speechmatics configuration is unavailable. Run the local development or preview server.'); }
+          ? 'Voice SDK ready · Mandarin / English. Starting uses your Speechmatics and TypeSafe accounts.'
+          : 'Add SPEECHMATICS_API_KEY to .env.local and restart the Python Voice gateway. Your key stays on the server.');
+      } catch { if (active) setSetupMessage('Python Voice gateway is unavailable. Run npm run voice alongside the local app.'); }
       finally { clearTimeout(timer); }
     })();
     return () => { active = false; clearTimeout(timer); controller.abort(); };
@@ -97,7 +97,7 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
       <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p></div>
     <CueSurface cues={snapshot.cues} display={refined.cues} />
     <JevSetup onReady={setJevReady} />
-    <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Speechmatics again</button>}</div>
+    <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Voice gateway again</button>}</div>
     {(input.error || input.inputError || snapshot.inputError || snapshot.lastDecision?.error) &&
       <p className="provider-error" role="alert">{input.error ?? input.inputError ?? snapshot.inputError ?? snapshot.lastDecision?.error}</p>}
     <section className="replay-controls" aria-label="Microphone controls"><div className="buttons">

@@ -3,7 +3,7 @@ import type { CueState } from '../cue/types';
 import type { DecisionInput } from '../decision/decision-provider';
 import type { CueDecision } from '../decision/types';
 import type { EvidenceFragment } from '../evidence/evidence-buffer';
-import { TRANSCRIPTION_CONFIG } from './config';
+import type { VoiceConfiguration } from './config';
 import type { SourceObservation } from './speechmatics-source';
 import type { RefinementObservation } from '../refinement/types';
 import { MAX_REFINEMENT_CHARS, REFINEMENT_MODEL, REFINEMENT_TIMEOUT_MS } from '../refinement/types';
@@ -22,8 +22,9 @@ export class SessionDiagnostics {
   private fragments: EvidenceFragment[] = [];
   private requestIds = new WeakMap<DecisionInput, number>();
   private requestSequence = 0;
+  private configuration: VoiceConfiguration | undefined;
   private recordingFailed = false;
-  constructor(readonly sessionId: string, private readonly source: 'speechmatics-final' | 'text-replay' = 'speechmatics-final') {}
+  constructor(readonly sessionId: string, private readonly source: 'speechmatics-voice' | 'text-replay' = 'speechmatics-voice') {}
   private now() { return performance.now(); }
   private safely(record: () => void) {
     try { record(); } catch { this.recordingFailed = true; }
@@ -33,7 +34,8 @@ export class SessionDiagnostics {
   observe = (event: SourceObservation) => {
     this.safely(() => {
       this.events.push(event);
-      if (event.type === 'final' && event.result.fragment) this.fragments.push(event.result.fragment);
+      if (event.type === 'voice-segments') this.fragments.push(...event.result.fragments);
+      if (event.type === 'voice-configuration') this.configuration = event.configuration;
     });
   };
 
@@ -83,18 +85,33 @@ export class SessionDiagnostics {
 
   export() {
     return {
-      schemaVersion: 2, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
+      schemaVersion: 3, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
       contextVersion: 'structured-v3',
       refinement: { model: REFINEMENT_MODEL, timeoutMs: REFINEMENT_TIMEOUT_MS, maxInputChars: MAX_REFINEMENT_CHARS,
         style: 'faithful-concise', defaultEnabled: false },
-      ...(this.source === 'speechmatics-final' ? { configuration: TRANSCRIPTION_CONFIG,
-        sdkVersions: { audio: '2.0.4', realtime: '8.5.1' } } : {}),
+      ...(this.source === 'speechmatics-voice' ? { configuration: this.configuration,
+        sdkVersions: { audio: '2.0.4', voice: this.configuration?.voiceVersion, rt: this.configuration?.rtVersion } } : {}),
       timing: {
-        local: 'atMonoMs: main-thread performance.now() milliseconds; Final time is delivery to the source adapter',
-        source: this.source === 'speechmatics-final' ? 'startMs/endMs: Speechmatics audio timeline; raw startSeconds/endSeconds retained'
+        local: 'atMonoMs: main-thread performance.now() milliseconds; segment time is delivery to the source adapter',
+        source: this.source === 'speechmatics-voice' ? 'startMs/endMs: Speechmatics audio timeline; Voice segment timestamps are converted from seconds'
           : 'startMs/endMs: text replay source timeline',
         limits: 'No audio-to-local-clock mapping, audio-end latency, browser paint measurement or teaching-point-end inference.',
       },
+      // Explicit source→candidate→decision links, including cycles coalesced while busy.
+      segmentDecisions: this.fragments.map(fragment => {
+        const requests = this.events.filter((event): event is Extract<DiagnosticEvent, { type: 'jev-request' }> =>
+          event.type === 'jev-request' && event.input.evidence.fragments.some(item => item.id === fragment.id));
+        return { fragmentId: fragment.id, cycle: fragment.cycle,
+          triggeredRequestIds: requests.filter(event => fragment.cycle === undefined
+            ? event.input.evidence.fragments.at(-1)?.id === fragment.id
+            : event.input.evidence.fragments.at(-1)?.cycle === fragment.cycle).map(event => event.requestId),
+          requests: requests.map(event => ({ requestId: event.requestId,
+            candidateIds: event.input.candidates.filter(candidate => candidate.sourceFragmentIds.includes(fragment.id)).map(candidate => candidate.id),
+            result: this.events.find(result => result.type === 'jev-return' && result.requestId === event.requestId),
+            outcome: this.events.find(result => result.type === 'decision-outcome' && result.requestId === event.requestId),
+          })),
+        };
+      }),
       fragments: [...this.fragments], events: [...this.events],
     };
   }

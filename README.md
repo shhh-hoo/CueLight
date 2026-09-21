@@ -2,7 +2,7 @@
 
 A small teaching-attention experiment. A learner sees the teaching point worth keeping in view, not a running transcript.
 
-The React + TypeScript application supports microphone input through Speechmatics Realtime and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. Both Jev browser modes offer optional, non-blocking OpenAI text refinement, off by default. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
+The React + TypeScript application supports microphone input through the Speechmatics Voice SDK and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. Both Jev browser modes offer optional, non-blocking OpenAI text refinement, off by default. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
 
 ## Run it
 
@@ -40,27 +40,66 @@ Jev always uses **structured-v3**. There is no context selector or older-context
 
 ## Use the microphone
 
-1. In this checkout's ignored `.env.local`, set both `TYPESAFE_API_KEY` and `SPEECHMATICS_API_KEY`. Keep both server-only, without a `VITE_` prefix. Do not overwrite an existing configuration file. `JEV_MODEL=jev-latest` is optional.
-2. Run `npm ci`, then `npm run dev`. For the built local app, run `npm run build` and `npm run preview`. A static file host cannot mint credentials or serve Jev decisions.
-3. Open Vite's loopback URL in a browser supporting microphone capture, AudioContext, AudioWorklet and module Workers. Select **Microphone** in **Input source**. Configuration checks do not call either paid provider and do not validate the keys.
-4. Click **Start microphone**, allow microphone access, and wait for **Microphone live · you can speak now**. Audio captured while connecting is not sent. Speechmatics receives audio directly from the browser; finalized text goes to the existing Jev V3 decision pipeline. Starting uses your Speechmatics and TypeSafe accounts.
-5. Click **Stop microphone** to release the microphone and finish pending results. Wait for **Session stopped**. Reset, changing source, or leaving the page cancels immediately instead of draining. Reconnect and **Start new session** start fresh evidence, Cue state and audio timestamps; they do not resume the old session.
+Microphone mode now requires **Python 3.11+** as well as **Node 24+**. The browser uses the existing Speechmatics PCM recorder; a small Python gateway supplies finalized Voice SDK segments. Jev still chooses QUIET / NEW_CUE / UPDATE_CURRENT. Learners do not see a live transcript.
 
-Only Speechmatics `AddTranscript` events enter the Engine. Partials are disabled and ignored; no silence/EndOfUtterance trigger, semantic splitting or transcription rewriting is added. Natural Final boundaries are retained. Seconds become source milliseconds; session UUIDs and receive sequence numbers identify fragments. Identical source times plus identical text identify duplicate deliveries; the same text spoken at later times remains new evidence. Empty Finals are skipped; invalid, out-of-order or over-4096-character Finals are visibly diagnosed without truncation.
+1. Set `TYPESAFE_API_KEY` and `SPEECHMATICS_API_KEY` in this checkout's ignored `.env.local`. Preserve existing values; never prefix credentials with `VITE_`. Both services load this file; environment variables take precedence in the gateway.
+2. Install once from the repository root:
 
-The pinned official SDKs are `@speechmatics/browser-audio-input@2.0.4` (PCMRecorder and its bundled AudioWorklet) and `@speechmatics/real-time-client@8.5.1`. Audio is mono `pcm_f32le` at the actual AudioContext sample rate. A per-session Worker owns the realtime SDK connection, providing a hard cancellation boundary because this SDK version has no public force-close method. Audio sending does not await Jev; Final intake retains the Engine's existing bounded coalescing behavior.
+   ```sh
+   npm ci
+   python3 -m venv .venv
+   .venv/bin/python -m pip install -r voice_gateway/requirements.txt
+   ```
 
-The fixed initial transcription configuration is `language: cmn_en`, `model: enhanced`, `max_delay: 2`, `max_delay_mode: flexible`, and `enable_partials: false`, using `wss://global.rt.speechmatics.com/v2`. This favors readable Mandarin/English transcription with moderate delay. Flexible formatting can wait longer for entities such as numbers; two seconds is not a speech-to-Cue guarantee. See the official [languages](https://docs.speechmatics.com/speech-to-text/languages), [models](https://docs.speechmatics.com/speech-to-text/models), [audio input](https://docs.speechmatics.com/speech-to-text/realtime/input), and [latency documentation](https://docs.speechmatics.com/speech-to-text/realtime/output), checked on 2026-09-20.
+3. Start two terminals from the repository root:
 
-The local `GET /api/speechmatics/status` exposes only readiness. `POST /api/speechmatics/token` requires a loopback Host, an explicit matching Origin, JSON content type and an empty object, with a 1 KB body limit. It mints a 60-second realtime JWT using the server key, with a five-second deadline, no CORS access and no caching. Provider errors are not reflected. JWTs stay in session memory and are excluded from diagnostic records and browser storage. See [official temporary-key authentication](https://docs.speechmatics.com/get-started/authentication).
+   ```sh
+   npm run voice   # Python gateway, 127.0.0.1:8765
+   npm run dev     # browser app, normally 127.0.0.1:5173
+   ```
 
-Normal stop waits for acknowledgements of all delivered audio blocks before the SDK sends EndOfStream, then accepts trailing Finals until EndOfTranscript. The ASR drain is bounded to ten seconds, followed by up to fourteen seconds for the current and coalesced Jev decisions. A timeout reports an incomplete session and retains the existing Cue. Source failures and Jev failures appear outside the learner surface; neither is presented as a successful semantic QUIET. See the [realtime protocol](https://docs.speechmatics.com/api-ref/realtime-transcription-websocket).
+   For the local production build, use `npm run build` then `npm run preview`, with the gateway still running. Vite proxies `/api/voice/status` and `/api/voice/session` (WebSocket) to port 8765; no frontend environment setting is needed. The gateway accepts loopback Host and matching Origin only. It is a local service, not public deployment infrastructure; a static `dist/` host alone cannot run Voice, Jev, or refinement. On Windows, use `.venv\Scripts\python voice_gateway/gateway.py` in place of `npm run voice`.
 
-In development, **Show diagnostics → Export session diagnostics** downloads JSON containing Final originals/times, accepted fragments, request candidates, Jev actions and Cue application outcomes. Its top-level `fragments` work with the existing transcript replay runner. No database, automatic upload, raw audio recording or browser-storage persistence is added. Reset/source changes discard the in-memory journal, so export first if needed.
+4. Select **Microphone**, click **Start microphone**, allow access, and wait for **Microphone live · you can speak now**. Configuration checks do not call paid providers or validate keys. Starting uses Speechmatics and TypeSafe. The browser needs AudioContext, AudioWorklet, microphone permission and WebSocket support; audio captured while connecting is discarded.
+5. **Stop microphone** stops capture, finalizes outstanding audio/segments, drains Jev, then disconnects the SDK. Wait for **Session stopped**. Reset, source change and page exit cancel immediately. Reconnect / **Start new session** creates a new ID, source clock, evidence and Cue state.
 
-Diagnostic `atMonoMs` values use main-thread `performance.now()`; Final receipt means delivery of the SDK event to the source adapter. Audio source times remain a separate timeline. No audio-to-local-clock mapping, audio-end-to-Final latency, browser paint measurement, or inference that a Final ends a complete teaching point is claimed. Diagnostic logging failures do not change decisions and mark the export `recordingFailed`.
+### Runtime and SDK configuration
 
-**Validation status:** the microphone integration is implemented, but a real Speechmatics session and the user's actual teaching experience have not been verified. Development-page loading, missing-configuration controls and loading the official AudioWorklet in a real browser were checked. Further testing was deferred at the user's request; no new simulated microphone/Speechmatics tests are included. Natural Final granularity, candidate coverage, missed/jumping Cues, corrections and perceived delay remain product observations for real use.
+```text
+Browser microphone → PCMRecorder / AudioWorklet → same-origin WebSocket
+→ Python Voice gateway → Speechmatics VoiceAgentClient
+→ ADD_SEGMENT → ordered EvidenceFragments (one batch per event)
+→ existing candidate builder → Jev structured-v3 → raw Cue
+→ optional OpenAI refinement, asynchronously
+```
+
+Pinned packages: `@speechmatics/browser-audio-input@2.0.4`, `speechmatics-voice==0.2.8`, and its underlying `speechmatics-rt==1.1.1`. The Python SDK is not a browser package. Audio is mono **pcm_f32le at 16,000 Hz**, using `AudioContext({ sampleRate: 16000 })` for browser resampling. Voice 0.2.8 validates sample rates as 8 or 16 kHz, so the former native-device-rate configuration cannot be reused unchanged.
+
+The gateway uses `VoiceAgentConfigPreset.CAPTIONS(VoiceAgentConfig(...))`: `language="cmn_en"`, enhanced operating point, speaker diarization, sentence emission, `include_partials=False`, and the preset's unchanged `max_delay=0.7` / fixed EOU silence trigger 0.5 seconds. No custom segmenter, sentence assembler, or delay increase is added. The SDK uses its default EU endpoint (`eu2.rt.speechmatics.com`), or a server-only `SPEECHMATICS_RT_URL` override. `cmn_en` retains Mandarin/English code switching; other fixed language packs are documented by Speechmatics, but there is no new language selector. `auto` is batch-only for this model; it is not a realtime multilingual setting.
+
+Only **`AgentServerMessageType.ADD_SEGMENT`** is forwarded as evidence. `ADD_PARTIAL_SEGMENT` and legacy word transcripts have no application handlers. The SDK may consume these internally. A multi-segment event is ordered on the source timeline, accepted atomically, and schedules at most one decision cycle. Existing one-in-flight/latest-pending coalescing remains. Candidates are the newest whole segment, contiguous recent whole segments, or the existing current-Cue expansion; structured-v3 is unchanged. Text is copied verbatim, including whitespace, with source times, session ID, sequence, event cycle, speaker/language where supplied, and browser receive time. Empty segments are skipped; invalid or over-4096-character evidence is reported without truncation.
+
+### Stop, cancellation and SDK compatibility
+
+The installed SDK's `finalize()` is synchronous and schedules a queue flush; it does not wait for pending provider audio. Its `disconnect()` marks intake as closing before teardown, so calling it immediately can lose trailing recognition. CueLight therefore calls the SDK's public inherited `force_end_of_utterance()` after the final audio frame, waits for the provider's **forced** EOU response, waits for the SDK queue, calls `finalize()`, then waits for that flush to complete. The gateway sends `drained` after all finalized events; the browser drains Jev (up to 14 seconds) and replies `finish`; only then does the gateway call `disconnect()` and send `stopped`. ASR drain is limited to 10 seconds. A missing forced EOU/queue completion is an explicit incomplete-session error.
+
+`DrainingVoiceClient` contains a small, documented compatibility adapter for the SDK's private FIFO `_stt_message_queue` because 0.2.8 has no public awaitable finalization barrier. It also cancels `_stt_queue_task` on failed startup, which the installed version's early-returning disconnect does not clean up. An installed-SDK regression test exercises the real queue and trailing/empty finalization. Reverify these two private boundaries before changing either pinned SDK version. The gateway does not consume underlying transcript events or make semantic decisions.
+
+Socket closure cancels connection/drain work and closes the provider. Late callbacks lose authority before cleanup. Every browser control and gateway event is tied to one session ID; the browser adapter rejects foreign IDs. Existing Jev/refinement generation and revision guards remain. A slow or failed OpenAI request never delays a raw Cue, future audio, Jev, or Stop.
+
+### Diagnostics and validation
+
+In development, **Show diagnostics → Export session diagnostics** downloads schema-v3 JSON with actual gateway configuration, complete segment originals/times, session/speaker/sequence/cycle metadata, candidates, request IDs, Jev returns, Cue transitions and optional refinement. `segmentDecisions` explicitly links each segment to its candidate IDs, triggering request(s), eventual decisions and application outcomes; coalesced cycles can have no directly triggered request. The top-level `fragments` remain compatible with the transcript replay runner. Audio is never recorded, logged or persisted by the app or gateway; diagnostics remain in memory unless explicitly exported.
+
+Local `atMonoMs`/`receivedAtMonoMs` values use browser `performance.now()`; source timestamps are seconds from Voice converted to milliseconds. No audio-to-browser-clock mapping or measured speech-to-screen latency is claimed.
+
+**Real speech validation is pending the user's own microphone test.** Automated tests cover the actual browser recorder with synthetic input, the gateway protocol with a stub provider, and the installed SDK's queue with synthetic provider events. They do not establish natural segment granularity or Cue quality. Start with `captions`; consider `scribe` only if actual exports show excessively small finalized segments. No preset comparison framework is included.
+
+Run gateway checks with `npm run test:voice`; run frontend checks with `npm run check`. Browser tests refuse an existing server to avoid testing the wrong checkout. If port 5173 is occupied, use `CUELIGHT_TEST_DEV_PORT=5189 npm run test:e2e`.
+
+For the real test, speak continuously for 1–2 minutes, Stop during/just after the last sentence, wait for **Session stopped**, and export diagnostics. Check finalized segment count, mean words/segment, percentage of single-word segments, Jev request count, representative segments/Cues, and the final sentence. Compare qualitatively with the prior 145-second baseline (306 fragments, 1.40 words/fragment, 65.4% single-word, 271 Jev requests). Each `jev-request` should correspond to a new finalized cycle; partials must create no requests. Also Reset and start a second session to confirm isolation.
+
+First-party references checked alongside installed source: [Voice SDK README and events](https://github.com/speechmatics/speechmatics-python-sdk/tree/main/sdk/voice), [SDK presets](https://github.com/speechmatics/speechmatics-python-sdk/blob/main/sdk/voice/speechmatics/voice/_presets.py), [language packs](https://docs.speechmatics.com/speech-to-text/languages), and [forced EOU protocol](https://docs.speechmatics.com/api-ref/realtime-transcription-websocket). `scribe` uses sentence emission with a longer fixed silence trigger and different latency defaults; it has not been selected or benchmarked here.
 
 ## Browser-free transcript replay
 
@@ -101,8 +140,9 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
 | `src/evidence/evidence-buffer.ts` | Immutable snapshots of up to 20 seconds / 32 finalized fragments; version increments on accepted input. |
 | `src/candidates/candidate-builder.ts` | Up to four deduplicated, contiguous source spans. No paraphrasing, summarization, NLP, or ontology. |
 | `src/decision/` | Provider contract, validation, scripted mock, same-origin HTTP client, and server-only Jev adapter. |
-| `server/` | Bounded request validation, local Jev endpoints and Speechmatics token minting, mounted by `vite.config.ts` in dev and preview. |
-| `src/speechmatics/` | Official browser audio/SDK connection, natural Final adapter, source lifecycle and development session diagnostics. |
+| `server/` | Bounded request validation, local Jev and OpenAI refinement endpoints, mounted by `vite.config.ts` in dev and preview. |
+| `voice_gateway/` | Local Python Voice SDK service and focused lifecycle/protocol checks. |
+| `src/speechmatics/` | Browser PCM capture, Voice gateway connection, finalized segment adapter, source lifecycle and development diagnostics. |
 | `src/refinement/` | Optional same-revision display refinement; separate presentation state, bounded scheduling and local HTTP client. |
 | `src/cue/cue-engine.ts` | Evidence intake, a single in-flight request, one dirty bit, version/session guards, diagnostics, and previous-Cue expiry. |
 | `src/cue/cue-reducer.ts` | Pure `QUIET`, `NEW_CUE`, and `UPDATE_CURRENT` transitions. |
@@ -205,4 +245,4 @@ CI runs the same checks on pull requests, without model secrets or calls.
 
 This is not closed captioning. Useful screen changes are not guaranteed for every fragment, and the learner never sees incoming transcript just because it arrived. Selected source text is displayed verbatim first; optional OpenAI refinement may subsequently change its display wording. Refinement belongs between the authoritative Cue and rendering, not inside decision logic.
 
-There is no semantic speech segmentation, editable lesson corpus, durable lesson state, concept graph, background job infrastructure, semantic evaluation benchmark, deployment, or standalone backend framework. Generated display text is limited to optional same-revision refinement. The next product questions are whether natural Speechmatics Finals and existing candidates let Jev choose useful content, and whether faithful refinement improves reading enough to justify a second text change. Existing engineering checks do not establish real ASR performance, refinement quality or classroom usefulness.
+The Voice SDK supplies speech segmentation. There is no custom semantic segmenter, editable lesson corpus, durable lesson state, concept graph, background job infrastructure, semantic evaluation benchmark, or public deployment. Generated display text is limited to optional same-revision refinement. The next product questions are whether finalized Voice SDK segments and existing candidates let Jev choose useful content, and whether faithful refinement improves reading enough to justify a second text change. Existing engineering checks do not establish real ASR performance, refinement quality or classroom usefulness.

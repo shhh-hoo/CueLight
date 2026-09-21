@@ -4,12 +4,12 @@ const osmosis = 'Osmosis is the movement of water across a partially permeable m
 const clarification = 'The moving particles are water, not solute.';
 const diffusion = 'Diffusion is the net movement of particles from higher to lower concentration.';
 
-test('one real-time replay: filler stays hidden, UPDATE stays in place, NEW transitions, previous expires', async ({ page }) => {
+test('one real-time replay: filler stays hidden, UPDATE stays in place, NEW transitions, previous expires', async ({ page, baseURL }) => {
   const errors: string[] = [];
   const remoteRequests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:5173/')) remoteRequests.push(request.url()); });
+  page.on('request', request => { if (!request.url().startsWith(`${baseURL}/`)) remoteRequests.push(request.url()); });
   await page.goto('/');
   const surface = page.getByRole('region', { name: 'Learner surface' });
   await expect(surface).toContainText('A little space');

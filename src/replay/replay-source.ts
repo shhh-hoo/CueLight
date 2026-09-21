@@ -2,6 +2,7 @@ import { systemClock, type Clock } from '../clock';
 import type { EvidenceFragment } from '../evidence/evidence-buffer';
 
 export interface TeachingEvidenceSource {
+  subscribeBatch?(onFinalSegments: (fragments: readonly EvidenceFragment[]) => void): () => void;
   subscribe(onFinalFragment: (fragment: EvidenceFragment) => void): () => void;
 }
 

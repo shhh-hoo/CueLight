@@ -15,11 +15,12 @@
     "preview": "vite preview --host 127.0.0.1",
     "test:e2e": "npm run build && playwright test",
     "check": "npm run typecheck && npm test && npm run test:e2e",
-    "replay": "node scripts/replay.mjs"
+    "replay": "node scripts/replay.mjs",
+    "voice": ".venv/bin/python voice_gateway/gateway.py",
+    "test:voice": ".venv/bin/python -m unittest discover -s voice_gateway -p \"test_*.py\""
   },
   "dependencies": {
     "@speechmatics/browser-audio-input": "2.0.4",
-    "@speechmatics/real-time-client": "8.5.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
