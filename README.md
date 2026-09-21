@@ -178,7 +178,7 @@ The service uses the ordinary [Responses API](https://developers.openai.com/api/
 
 The refinement prompt requests one faithful paragraph in the original language(s), removing verbal filler and redundant wording while preserving all teaching points, numbers, units, negation, uncertainty and conditions. It forbids answering questions, importing another teaching point, translating, guessing formulas or repairing uncertain ASR. Returning the original text unchanged is valid. HTTP errors, refusals, incomplete output, invalid/empty results and timeouts retain the visible Cue and are distinguished in teacher diagnostics. [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) constrains format, not factual or semantic faithfulness; code does not prove that a rewrite preserves meaning.
 
-Type checking and the production build passed for this delivery. No new simulated test cases or paid model calls were added; the unit/browser suites were not run. Existing text fixture objects were updated for the source revision field. Runtime, rewrite quality and reading disruption have not been verified; further testing remains deferred at the user's request.
+After the Reset E2E correction, the existing full check passed locally: type checking, production build, 82 unit tests and 14 browser tests. No new simulated test cases or paid model calls were added. Existing text fixture objects were updated for the source revision field; the existing Reset case reopens diagnostics before checking the cleared evidence version. Real Speechmatics/OpenAI operation, rewrite quality and reading disruption remain unverified and are left for the user's local trial.
 
 ## Verification
 
