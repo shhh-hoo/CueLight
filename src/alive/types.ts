@@ -7,12 +7,15 @@ export type EvidenceRecord = EvidenceFragment & Readonly<{
 export type EvidenceBinding = Readonly<{
   evidenceId: string; start: number; end: number; quote: string;
 }>;
+export type RoleSubject = Readonly<{ kind: 'speaker' | 'capture' | 'channel'; id: string }>;
 export type RoleBinding = Readonly<{
-  bindingId: string; revision: number; speakerId: string;
+  bindingId: string; revision: number;
   role: 'teacher' | 'student' | 'unknown';
   basis: 'configured' | 'teacher_confirmed' | 'supplied_metadata';
   basisRefs: readonly string[]; sourceRanges: readonly EvidenceBinding[];
-}>;
+}> & (Readonly<{ subject: RoleSubject; speakerId?: never }> |
+  // Read existing foundation histories without rewriting persisted events.
+  Readonly<{ speakerId: string; subject?: never }>);
 export type AssetRef = Readonly<{
   packId: string; releaseId: string; assetId: string; assetVersion: string; digest: string;
 }>;

@@ -1,3 +1,4 @@
+import { matchesRoleSubject, relevantRoles, roleCovers, roleSubject } from './authority';
 import { covers, freeze, overlaps, processRange, sameFragment, requireDomain as check, validId, validateBinding, validateFragment } from './evidence';
 import type { AcceptedEvent, CueContentPart, CueRecord, CueRevision, EvidenceBinding, LessonState, ReadSet, SemanticProposal } from './types';
 
@@ -63,7 +64,7 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
     return cue;
   };
   const requireRoleReads = (refs: readonly EvidenceBinding[]) => {
-    const roles = Object.values(next.roles).filter(role => role.sourceRanges.some(scope => refs.some(ref => overlaps(scope, ref))));
+    const roles = relevantRoles(next, refs);
     for (const role of roles) {
       if (state.roles[role.bindingId]) check(event.readSet.roles?.[role.bindingId] === role.revision, 'Missing role dependency.');
     }
@@ -71,9 +72,11 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
   };
   const teacherGrounded = (refs: readonly EvidenceBinding[], roleIds: readonly string[]) => {
     const roles = requireRoleReads(refs);
-    return refs.length > 0 && refs.every(ref => roles.some(role => roleIds.includes(role.bindingId) && role.role === 'teacher' &&
-      role.sourceRanges.some(scope => covers(scope, ref))));
+    return refs.length > 0 && roles.every(role => role.role === 'teacher') && refs.every(ref => roles.some(role => roleIds.includes(role.bindingId) && role.role === 'teacher' &&
+      roleCovers(next, role, ref)));
   };
+  const teacherEstablished = (part: CueContentPart) => part.stance === 'asserted' ||
+    relevantRoles(next, part.establishmentEvidence).some(role => role.role === 'teacher');
   const validateParts = (parts: readonly CueContentPart[], cueId: string) => {
     check(parts.length > 0 && new Set(parts.map(p => p.partId)).size === parts.length, 'Cue parts must be nonempty and unique.');
     for (const part of parts) {
@@ -148,13 +151,19 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         break;
       }
       case 'BIND_ROLE': {
-        const role = op.binding; validId(role.bindingId); ranges(role.sourceRanges);
+        const role = op.binding; validId(role.bindingId); validId(roleSubject(role).id);
+        check(['speaker', 'capture', 'channel'].includes(roleSubject(role).kind), 'Invalid role subject.');
+        ranges(role.sourceRanges, roleSubject(role).kind === 'speaker');
         check(['teacher', 'student', 'unknown'].includes(role.role) && ['configured', 'teacher_confirmed', 'supplied_metadata'].includes(role.basis) && role.basisRefs.length > 0, 'Role needs an explicit authority basis.');
-        check(role.sourceRanges.every(ref => next.evidence[ref.evidenceId]!.speakerId === role.speakerId), 'Role does not match source speaker.');
+        check(role.sourceRanges.every(ref => matchesRoleSubject(role, next.evidence[ref.evidenceId]!)), 'Role does not match source subject.');
         const previous = state.roles[role.bindingId];
         check(role.revision === (previous?.revision ?? 0) + 1 && event.readSet.roles?.[role.bindingId] === (previous?.revision ?? 0), 'Missing/stale role revision.');
         check(!Object.values(next.roles).some(other => other.bindingId !== role.bindingId && other.role !== role.role &&
-          other.sourceRanges.some(a => role.sourceRanges.some(b => overlaps(a, b)))), 'Conflicting source roles.');
+          ((roleSubject(other).kind === roleSubject(role).kind && roleSubject(other).id === roleSubject(role).id &&
+            (other.sourceRanges.length === 0 || role.sourceRanges.length === 0)) ||
+          Object.values(next.evidence).some(e => roleCovers(next, role, { evidenceId: e.id, start: 0, end: e.text.length, quote: e.text }) &&
+            roleCovers(next, other, { evidenceId: e.id, start: 0, end: e.text.length, quote: e.text })) ||
+          other.sourceRanges.some(a => role.sourceRanges.some(b => overlaps(a, b))))), 'Conflicting source roles.');
         next.roles[role.bindingId] = role; break;
       }
       case 'ADOPT': {
@@ -164,7 +173,7 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         check(teacherGrounded(adoption.teacherEvidenceRefs, adoption.roleBindingRefs), 'Adoption lacks teacher confirmation.');
         const contributionRoles = requireRoleReads(adoption.contributionSourceRefs);
         check(adoption.contributionSourceRefs.every(ref => contributionRoles.some(role => role.role === 'student' &&
-          adoption.roleBindingRefs.includes(role.bindingId) && role.sourceRanges.some(scope => covers(scope, ref)))), 'Contribution lacks sourced student role.');
+          adoption.roleBindingRefs.includes(role.bindingId) && roleCovers(next, role, ref))), 'Contribution lacks sourced student role.');
         check([...adoption.adoptedRanges, ...adoption.excludedRanges].every(ref => adoption.contributionSourceRefs.some(source => covers(source, ref))), 'Adoption exceeds contribution.');
         check(!adoption.adoptedRanges.some(a => adoption.excludedRanges.some(b => overlaps(a, b))), 'Adopted and excluded ranges overlap.');
         for (const target of adoption.targetCueParts) readCue(target.cueId);
@@ -188,10 +197,25 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         const old = currentRevision(cue).parts;
         check(op.parts.length + op.removePartIds.length > 0, 'Empty semantic revision.');
         check(op.removePartIds.every(id => old.some(p => p.partId === id)), 'Unknown removed part.');
-        if (op.type === 'EXTEND') check(op.removePartIds.length === 0 && op.parts.every(p => !old.some(previous => previous.partId === p.partId)), 'EXTEND only adds new parts.');
+        if (op.type === 'EXTEND') check(op.removePartIds.length === 0 && op.parts.every(p => !(p.replacesPartIds?.length) && !old.some(previous => previous.partId === p.partId)), 'EXTEND only adds new parts.');
         for (const part of op.parts) check((part.replacesPartIds ?? []).every(id => old.some(p => p.partId === id)), 'Unknown replaced part.');
         const replaced = new Set([...op.removePartIds, ...op.parts.flatMap(p => [p.partId, ...(p.replacesPartIds ?? [])])]);
-        const parts = [...old.filter(p => !replaced.has(p.partId)), ...op.parts];
+        if (old.some(part => replaced.has(part.partId) && teacherEstablished(part))) {
+          check(teacherGrounded(op.basis, requireRoleReads(op.basis).map(role => role.bindingId)), 'Semantic mutation requires teacher-grounded correction evidence.');
+        }
+        // Each replacement anchors at its earliest replaced position. Disjoint
+        // groups follow original composition order; genuinely new parts append.
+        const owners = new Set<string>();
+        const anchored = op.parts.map(part => {
+          const ids = [...new Set([part.partId, ...(part.replacesPartIds ?? [])])].filter(id => old.some(p => p.partId === id));
+          check(ids.every(id => !owners.has(id)), 'Ambiguous overlapping part replacements.');
+          ids.forEach(id => owners.add(id));
+          return { part, index: ids.length ? Math.min(...ids.map(id => old.findIndex(p => p.partId === id))) : old.length };
+        });
+        const parts = old.flatMap((part, index) => [
+          ...anchored.filter(entry => entry.index === index).map(entry => entry.part),
+          ...(!replaced.has(part.partId) ? [part] : []),
+        ]).concat(anchored.filter(entry => entry.index === old.length).map(entry => entry.part));
         validateParts(parts, cue.cueId); revise(cue, parts, op.basis); break;
       }
       case 'MENTION': case 'RECALL': {
@@ -204,7 +228,11 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         next.cues[cue.cueId] = { ...cue, development: op.type === 'SETTLE' ? 'settled' : 'open', lastLifecycleEventId: event.eventId }; break;
       }
       case 'WITHDRAW': {
-        const cue = readCue(op.cueId); ranges(op.basis); revise(cue, currentRevision(cue).parts, op.basis, 'withdrawn'); break;
+        const cue = readCue(op.cueId); ranges(op.basis);
+        if (currentRevision(cue).parts.some(teacherEstablished)) {
+          check(teacherGrounded(op.basis, requireRoleReads(op.basis).map(role => role.bindingId)), 'Withdrawal requires teacher-grounded evidence.');
+        }
+        revise(cue, currentRevision(cue).parts, op.basis, 'withdrawn'); break;
       }
       case 'RELATE': {
         const relation = op.relation; validId(relation.relationId);
@@ -217,6 +245,10 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         check(['current', 'needs_review', 'withdrawn'].includes(relation.status) && relation.kind.trim(), 'Invalid relation.');
         if (relation.family === 'external_domain') check(relation.assetRefs.length > 0, 'External relation needs an exact Asset.');
         else check(['classroom_discourse', 'classroom_domain'].includes(relation.family), 'Invalid relation family.');
+        if (relation.family === 'classroom_domain') {
+          check(teacherGrounded(relation.basisRefs, requireRoleReads(relation.basisRefs).map(role => role.bindingId)), 'Classroom-domain relation requires teacher authority.');
+          for (const role of requireRoleReads(relation.basisRefs)) check(relation.dependencyReadSet.roles?.[role.bindingId] === role.revision, 'Relation requires role provenance dependency.');
+        }
         next.relations[relation.relationId] = relation; break;
       }
       case 'DEFER': {

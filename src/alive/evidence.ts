@@ -14,7 +14,7 @@ export function freeze<T>(value: T): T {
   return value;
 }
 export function sameFragment(a: EvidenceFragment, b: EvidenceFragment): boolean {
-  const fields: readonly (keyof EvidenceFragment)[] = ['id', 'text', 'startMs', 'endMs', 'sessionId', 'sequence', 'cycle', 'receivedAtMonoMs', 'speakerId', 'language'];
+  const fields: readonly (keyof EvidenceFragment)[] = ['id', 'text', 'startMs', 'endMs', 'sessionId', 'sequence', 'cycle', 'receivedAtMonoMs', 'speakerId', 'inputChannelId', 'language'];
   return fields.every(key => a[key] === b[key]);
 }
 export function validateFragment(fragment: EvidenceFragment): void {

@@ -1,3 +1,4 @@
+import { relevantRoles } from './authority';
 import { EVIDENCE_WINDOW_MS, MAX_FRAGMENTS, type EvidenceWindow } from '../evidence/evidence-buffer';
 import type { Cue, CueState } from '../cue/types';
 import { binding, freeze, pendingBindings, requireDomain as check } from './evidence';
@@ -75,7 +76,7 @@ export function semanticWorkingSet(state: LessonState, options: WorkingSetOption
   }
   const adoptions = Object.values(state.adoptions).filter(a => a.targetCueParts.some(t => requiredCueIds.includes(t.cueId)));
   for (const adoption of adoptions) [...adoption.contributionSourceRefs, ...adoption.teacherEvidenceRefs].forEach(ref => sourceIds.add(ref.evidenceId));
-  const roles = Object.values(state.roles).filter(role => role.sourceRanges.some(ref => sourceIds.has(ref.evidenceId)));
+  const roles = relevantRoles(state, [...sourceIds].map(id => binding(state, id)));
   const evidence = state.evidenceOrder.filter(id => sourceIds.has(id)).map(id => state.evidence[id]!);
   const omittedCueIds = requested.filter(id => !requiredCueIds.includes(id));
   const omittedEvidence = pending.filter(ref => !newEvidence.includes(ref));

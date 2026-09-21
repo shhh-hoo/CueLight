@@ -25,8 +25,8 @@ describe('persistent Cue identity and partial revision', () => {
     expect(Object.keys(state.cues)).toEqual([a, b]);
     expect(state.cues[a]!.revisions.map(r => r.revision)).toEqual([1, 2, 3]);
     expect(state.occurrences).toEqual([expect.objectContaining({ cueId: a, kind: 'RECALL' })]);
-    expect(currentRevision(state.cues[a]!).parts.map(p => p.partId)).toEqual(['condition', 'definition']);
-    expect(sourceText(state.cues[a]!)).toBe('Only when Y. Use Z instead of X.');
+    expect(currentRevision(state.cues[a]!).parts.map(p => p.partId)).toEqual(['definition', 'condition']);
+    expect(sourceText(state.cues[a]!)).toBe('Use Z instead of X. Only when Y.');
     expect(state.cues[b]!.development).toBe('open');
     expect(projectDisplay(state, 650)).toMatchObject({ currentCue: { id: a, sourceRevision: 3 }, previousCue: { id: b } });
     expect(projectDisplay(state, 999_999).previousCue).toBeNull();

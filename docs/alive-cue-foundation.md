@@ -78,3 +78,31 @@ Full unit/HTTP/browser/Voice checks use mocks and synthetic audio. No paid Jev, 
 ## Deferred / next slice
 
 Next: Slice III, bounded redesigned Jev proposals over this authoritative state and Working Set, with explicit processing completeness, stable identity targeting and typed part operations. Then Domain Pack recognition/enrichment, teacher attention/controls, non-current artifact jobs and background semantic policy qualification. Automatic relationship inference, split/merge, external factual correction, cross-course memory, mastery, graph/vector stores, CMS/Foundry integration, new presentation forms and deployment are outside this PR.
+
+## Pre-Slice III corrections (separate stacked commit)
+
+Base: PR #15 `2b6825a24435f708fc128ca687b80d099b3e52b9`; main at audit:
+`e15d73c64a56ecbf1b3a398be39b45796c3f2261`. PR #15 remains unmerged.
+
+- Role subjects support speaker, configured capture, or input channel. Capture/channel
+  bindings may cover the configured subject before any Final arrives (`sourceRanges: []`);
+  explicit nonempty ranges narrow authority. Provider speaker labels grant nothing by
+  themselves. Conflicting applicable roles fail closed. Host/teacher alone bind roles;
+  all authority use reads the current binding revision. Legacy speaker bindings remain
+  readable without a history migration.
+- Replacing/removing asserted or teacher-grounded parts requires a teacher-grounded
+  correction basis. Withdrawing such a Cue requires teacher-grounded withdrawal basis.
+  Existing adoption remains available for asserting precisely adopted source; it does
+  not independently authorize deleting established semantics. Classroom-domain relations
+  require teacher evidence and role dependencies as well as exact endpoint revisions.
+- REVISE anchors replacements at their earliest replaced position, preserving surviving
+  order. Disjoint replacements sort by those original positions regardless of proposal
+  array order. New parts append in proposal order. Removal closes gaps. Overlapping
+  replacement groups are rejected as ambiguous; EXTEND cannot replace parts.
+- Proposal retries compare the complete proposal payload, ignoring object-key insertion
+  order but preserving array order. Changed payloads fail before any write, also on reload.
+
+Focused regressions: `src/alive/foundation-fixes.test.ts`; existing identity replay now
+asserts definition-before-condition composition instead of incidental append order.
+No retrieval, provider-contract change, UI redesign, or persistence backend migration
+is part of this correction commit.

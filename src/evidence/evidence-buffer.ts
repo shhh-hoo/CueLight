@@ -8,6 +8,7 @@ export type EvidenceFragment = Readonly<{
   cycle?: number;
   receivedAtMonoMs?: number;
   speakerId?: string;
+  inputChannelId?: string;
   language?: string;
 }>;
 

@@ -58,6 +58,17 @@ export function browserJournal(sessionId: string, sessionEpoch = 0, storage: Sto
   };
 }
 
+// Object key insertion order is not semantic; array order is (parts/operations).
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
+}
+function proposalPayload(event: AcceptedEvent): SemanticProposal {
+  const { eventId: _id, eventSequence: _sequence, acceptedAt: _at, createdCueIds: _created,
+    resultingVersions: _versions, ...proposal } = event;
+  return proposal;
+}
+
 export class LessonStore {
   private state: LessonState;
   private history: LessonHistory;
@@ -73,7 +84,10 @@ export class LessonStore {
     check(!this.deleted && !this.accepting, 'Lesson unavailable or acceptance already in progress.');
     check(proposal.sessionId === this.state.sessionId && proposal.sessionEpoch === this.state.sessionEpoch, 'Wrong session or epoch.');
     const previous = this.history.events.find(e => e.proposalId === proposal.proposalId);
-    if (previous) return previous;
+    if (previous) {
+      check(canonical(proposalPayload(previous)) === canonical(proposal), 'Proposal identity reuse with different payload.');
+      return previous;
+    }
     this.accepting = true;
     try {
       const candidate = prepareAcceptance(this.state, proposal, acceptedAt);
