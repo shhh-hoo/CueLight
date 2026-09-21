@@ -1,8 +1,53 @@
 # CueLight
 
-A small teaching-attention experiment. A learner sees the teaching point worth keeping in view, not a running transcript.
+CueLight keeps useful teaching references visible as the lesson moves on, without making the teacher stop to write, search or switch materials. A Cue is a temporary teaching reference: the question is **“what should remain visible now?”**
 
-The React + TypeScript application supports microphone input through the Speechmatics Voice SDK and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. Both Jev browser modes offer optional, non-blocking OpenAI text refinement, off by default. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection**.
+The [CueLight design document](https://docs.google.com/document/d/1rTZiWCVA_7uPSBgMYyFycpPqJ8313Xu7knKF3ZswNcs/edit) is the source of product direction. This README separates that direction from the runnable implementation below; alignment reviewed on 2026-09-21.
+
+## Product direction
+
+CueLight is persistence-first. It serves the middle ground: a definition, formula, standard wording, keyword, distinction, causal relation, example or compact visual that students would benefit from continuing to see, but that the teacher would otherwise skip writing or searching for. When building a representation is itself part of teaching—worked calculations, mechanisms, diagrams or spatial reasoning—use the whiteboard or deliberate teaching material. When nothing is worth keeping visible, stay QUIET.
+
+The learner sees only the current Cue and, where useful, a brief previous Cue. Transcript evidence belongs on the **teacher console**, which is a planned product surface with low-attention controls:
+
+- **Click a Final fragment** to request a Cue. The system supplies nearby context, the current Cue and relevant library candidates; the teacher does not compose a prompt or select multiple fragments in V1.
+- **Dismiss** an unwanted Cue without letting stale work restore it.
+- **Pin** a Cue to prevent automatic replacement until released.
+- **Save** a useful Cue to the teacher's library without changing the learner-facing Cue.
+
+AUTO remains the default. Teacher fragment-click is a second trigger into the same pipeline, not a permanent manual mode. AUTO may choose QUIET, NEW_CUE or UPDATE_CURRENT. A teacher click expresses display intent and must not silently become QUIET; the decision instead selects content and NEW versus UPDATE. Relevant automatic updates may extend a teacher-triggered Cue while preserving its intent; a new teaching focus may produce a new Cue unless it is pinned.
+
+The intended flow is:
+
+```text
+Live audio → Speechmatics Final evidence → rolling teaching context
+  → AUTO Jev decision or teacher fragment-click
+  → unified Cue pipeline, preferring a strongly matching trusted library asset
+  → immediate learner-facing Cue
+  → optional asynchronous OpenAI refinement
+  → commit only while the same Cue revision is current
+```
+
+**Cue Library** is the teacher's reusable teaching repertoire: text, formulas, standard wording, relations, examples, diagrams, graphs, mechanisms and other compact references. Library preferred, generation available: a library miss does not automatically mean QUIET. A useful newly created Cue can later be saved. Start with a small teacher-owned collection, import and lightweight Save/Edit/Delete; validate retrieval and reuse before adding a heavy CMS, mandatory hand-tagging or a vector-database dependency.
+
+Speechmatics Finals are stable ASR evidence, not guaranteed semantic teaching units or guaranteed correct text. Reason across nearby Finals. Partials may support transient teacher awareness, but must never become authoritative or clickable evidence or learner content. Keep source wording, recognition times and session identity; track arrival time separately. Do not add an independent semantic transcript composer or treat EndOfUtterance as proof that an idea is complete.
+
+Teacher actions and accepted Cue mutations must invalidate older automatic/refinement work through session, Cue and revision guards. Ordinary evidence arrivals must allow in-flight AUTO decisions to make progress. OpenAI must never delay the first Cue or introduce an unestablished teaching point, and may change display content only for the exact current revision. The previous-Cue duration is a UI variable to validate.
+
+## Implementation status
+
+This checkout includes the Speechmatics Voice SDK integration branch. Its current implementation is narrower than the design direction:
+
+| Area | Available in this checkout | Planned or still to validate |
+| --- | --- | --- |
+| Cue selection | Scripted replay and automatic Jev QUIET / NEW_CUE / UPDATE_CURRENT over source-span candidates. | Teacher fragment-click into the same pipeline; preservation of teacher intent. |
+| Teacher surface | Source/session controls and a development-only evidence/diagnostic panel. | Product transcript console, clickable Finals, Dismiss, Pin and Save. |
+| Library and representation | Verbatim source text followed by optional text refinement. | Trusted Cue assets, retrieval/reuse, capture/import and richer representations. |
+| Audio evidence | Python Voice SDK gateway forwards finalized `ADD_SEGMENT` events. | Validate this provider-native boundary against the design's Final-evidence contract with representative teaching audio. |
+| Revision safety | Session/freshness guards for automatic decisions and exact-revision OpenAI refinement. | Teacher-action authority and guards once those controls exist. |
+| Learner display | Current Cue, plus previous Cue for four seconds; current Cue does not expire. | Classroom value, distraction and useful persistence duration. |
+
+The React + TypeScript application supports microphone input through the Speechmatics Voice SDK and five text replays. Text replay offers an explicit scripted demo or Jev through a local server endpoint; microphone mode uses Jev. Both Jev browser modes offer optional, non-blocking OpenAI text refinement, off by default. A browser-free runner also replays longer source transcripts through the same Engine. The default demo needs no microphone, API key, or model call. The scripts demonstrate product behavior; **they do not validate semantic Cue selection or classroom usefulness**. The following runtime sections describe this implementation, not completion of the planned controls or library.
 
 ## Run it
 
@@ -185,7 +230,7 @@ Reset increments a session generation so an old result cannot match a new sessio
 - **QUIET:** the Cue state is unchanged, including object identity. Existing previous-Cue expiry continues.
 - **NEW_CUE:** the current Cue becomes previous; the new Cue gets a new identity and `sourceRevision: 1`.
 - **UPDATE_CURRENT:** the current source text, provenance and update timestamp change, and `sourceRevision` increments; identity and creation time remain. Without a current Cue, it behaves as NEW_CUE.
-- Previous Cue expires four seconds after moving into that position, independent of speech and subsequent updates. Another NEW_CUE starts a new four-second transition. Current Cue never expires automatically.
+- Previous Cue currently expires four seconds after moving into that position, independent of speech and subsequent updates. Another NEW_CUE starts a new four-second transition. Current Cue never expires automatically. This is a baseline UI behavior to validate, not a fixed learning rule.
 
 Pause stops future source emissions; it does not cancel a pending decision or suspend previous-Cue expiry.
 
@@ -214,7 +259,7 @@ Missing credentials, malformed JSON/schema, unknown options, HTTP/network failur
 
 ## Optional OpenAI text refinement
 
-This implements the non-blocking refinement contract in the [CueLight design document](https://docs.google.com/document/d/1rTZiWCVA_7uPSBgMYyFycpPqJ8313Xu7knKF3ZswNcs/edit). Jev decides QUIET / NEW / UPDATE and publishes its selected source text immediately. OpenAI can subsequently simplify the wording of that exact Cue revision. It does not select teaching content or feed generated text back into evidence, candidates or Jev.
+This implements the text-only, automatic-path portion of the non-blocking refinement contract in the [CueLight design document](https://docs.google.com/document/d/1rTZiWCVA_7uPSBgMYyFycpPqJ8313Xu7knKF3ZswNcs/edit). Jev decides QUIET / NEW / UPDATE and publishes its selected source text immediately. OpenAI can subsequently simplify the wording of that exact Cue revision. It does not select teaching content or feed generated text back into evidence, candidates or Jev. Library presentation and teacher-action invalidation remain future work.
 
 1. Set `OPENAI_API_KEY` in this checkout's ignored `.env.local`, alongside `TYPESAFE_API_KEY` (and `SPEECHMATICS_API_KEY` for microphone input). Never prefix credentials with `VITE_`. Preserve existing settings and restart the local dev/preview server.
 2. Select microphone mode or **Jev** text replay. Enable **Text refinement · preserve meaning, simplify wording** in the teacher controls. It is off by default in every new session; missing OpenAI configuration does not block teaching. Enabling with an existing Cue may request refinement immediately; otherwise the next accepted source Cue triggers it. Configuration checks alone do not call a model.
@@ -254,8 +299,28 @@ The required checks cover:
 
 CI runs the same checks on pull requests, without model secrets or calls.
 
+## Next delivery and product evaluation
+
+The first product question is whether teaching contains enough moments where a reference is worth keeping visible but not worth interrupting the lesson to write or search for. Correct summaries and fast model responses alone cannot answer that question.
+
+Follow the design document's delivery order:
+
+1. Exercise the live Speechmatics path with a configured key and representative teaching audio. Verify stable evidence granularity, stop/drain behavior, session isolation and the teacher transcript surface. The Voice SDK preset comparison remains pending.
+2. Add teacher steering to the same Cue pipeline: clickable finalized evidence with automatic surrounding context, plus Dismiss, Pin and Save. Teacher intent must outrank stale automatic and refinement results while AUTO continues listening.
+3. Seed a small library of the teacher's recurring references. Prefer a trusted asset when it strongly fits, with evidence-based Cue creation available when it does not.
+4. Use 3–5 short real teaching sessions, preferably revision or 1:1 teaching. Teacher-triggered or manually prepared trusted Cues can isolate product value from imperfect AUTO selection. Observe skipped writing/searching, student reference back to Cues, teacher interruptions, distracting display changes and whether the teacher voluntarily wants to use CueLight again.
+5. Use that evidence to prioritize automatic selection/retrieval, library capture, richer rendering and later whiteboard/context integration.
+
+If trusted, well-timed Cues add little value, reconsider the use case or presentation. If teacher-triggered Cues help but AUTO misses them, improve selection/context. If only saved assets help, prioritize retrieval. If students mainly use material after class, reconsider realtime persistence as the product center.
+
+Evaluate AUTO separately using timestamped replay with no future evidence: useful-Cue coverage, unwanted Cues, NEW versus UPDATE errors, focus drift and display changes per minute. For teacher triggers, measure click-to-first-Cue latency and recovery of the intended point from one Final plus nearby context. For the library, measure appropriate reuse, faithful adaptation and whether saved assets are actually reused. Classify failures as ASR/evidence, context, decision, retrieval, generation or commit freshness.
+
+Measure speech end → Final evidence → Jev decision → first visible Cue, with optional refinement measured separately. Include terminology, numbers, negation, self-correction, bilingual speech, silence, topic changes, reconnect and stop/drain. Preserve session isolation, source provenance, AUTO progress during continuous evidence, teacher-action authority, Pin/Dismiss behavior and exact-revision refinement as engineering contracts as those paths are implemented. Classroom trials, replay and concurrency checks provide different evidence; none alone establishes learning effectiveness or market demand.
+
 ## Deliberate limits
 
 This is not closed captioning. Useful screen changes are not guaranteed for every fragment, and the learner never sees incoming transcript just because it arrived. Selected source text is displayed verbatim first; optional OpenAI refinement may subsequently change its display wording. Refinement belongs between the authoritative Cue and rendering, not inside decision logic.
 
-The Voice SDK supplies speech segmentation. There is no custom semantic segmenter, editable lesson corpus, durable lesson state, concept graph, background job infrastructure, semantic evaluation benchmark, or public deployment. Generated display text is limited to optional same-revision refinement. The next product questions are whether finalized Voice SDK segments and existing candidates let Jev choose useful content, and whether faithful refinement improves reading enough to justify a second text change. Existing engineering checks do not establish real ASR performance, refinement quality or classroom usefulness.
+The Voice SDK supplies the current provider-native segment boundary; CueLight has no custom semantic transcript composer. Finalized segments are evidence, not guaranteed teaching units. There is currently no Cue Library, durable lesson state, concept graph, background job infrastructure, semantic evaluation benchmark or public deployment. Newly generated display wording is limited to optional same-revision text refinement; planned library and representation work must not be mistaken for shipped behavior.
+
+The initial product does not replace deliberate whiteboard construction, worked calculations or teaching where building the representation matters. It is not a student transcript, general note-taking or slide-authoring product, and teachers should not have to pre-build every Cue. Speaker diarization, custom semantic transcript reconstruction, automatic speech-to-formula parsing, a heavy library CMS and whiteboard reading remain later work unless classroom evidence makes them necessary. Existing engineering checks do not establish real ASR performance, refinement quality or classroom usefulness.
