@@ -37,6 +37,7 @@ test('one real-time replay: filler stays hidden, UPDATE stays in place, NEW tran
   expect(remoteRequests).toEqual([]);
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(surface).toContainText('A little space');
+  await page.getByRole('button', { name: 'Show diagnostics' }).click();
   await expect(page.getByTestId('evidence-version')).toHaveText('0');
 });
 
