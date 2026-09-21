@@ -6,9 +6,10 @@ import type { EvidenceFragment } from '../evidence/evidence-buffer';
 import type { VoiceConfiguration } from './config';
 import type { SourceObservation } from './speechmatics-source';
 import type { RefinementObservation } from '../refinement/types';
-import { MAX_REFINEMENT_CHARS, REFINEMENT_MODEL, REFINEMENT_TIMEOUT_MS } from '../refinement/types';
+import { jevConfiguration, type JevConfiguration, type RefinementConfiguration } from '../runtime-config';
 
 type DiagnosticEvent =
+  | { type: 'jev-configuration'; atMonoMs: number; configuration: JevConfiguration }
   | SourceObservation
   | RefinementObservation
   | { type: 'jev-request'; atMonoMs: number; requestId: number; input: DecisionInput }
@@ -23,6 +24,8 @@ export class SessionDiagnostics {
   private requestIds = new WeakMap<DecisionInput, number>();
   private requestSequence = 0;
   private configuration: VoiceConfiguration | undefined;
+  private refinement: RefinementConfiguration | undefined;
+  private jev: JevConfiguration | undefined;
   private recordingFailed = false;
   constructor(readonly sessionId: string, private readonly source: 'speechmatics-voice' | 'text-replay' = 'speechmatics-voice') {}
   private now() { return performance.now(); }
@@ -40,7 +43,17 @@ export class SessionDiagnostics {
   };
 
   observeRefinement = (event: RefinementObservation) => {
-    this.safely(() => this.events.push(event));
+    this.safely(() => {
+      if (event.type === 'refinement-configuration') this.refinement = event.configuration;
+      this.events.push(event);
+    });
+  };
+
+  observeJevConfiguration = (value: JevConfiguration) => {
+    this.safely(() => {
+      this.jev = jevConfiguration(value);
+      this.events.push({ type: 'jev-configuration', atMonoMs: this.now(), configuration: this.jev });
+    });
   };
 
   async decide(input: DecisionInput, run: () => Promise<CueDecision>) {
@@ -87,8 +100,8 @@ export class SessionDiagnostics {
     return {
       schemaVersion: 3, sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
       contextVersion: 'structured-v3',
-      refinement: { model: REFINEMENT_MODEL, timeoutMs: REFINEMENT_TIMEOUT_MS, maxInputChars: MAX_REFINEMENT_CHARS,
-        style: 'faithful-concise', defaultEnabled: false },
+      jev: this.jev ?? null,
+      refinement: this.refinement ? { ...this.refinement, style: 'faithful-concise' } : null,
       ...(this.source === 'speechmatics-voice' ? { configuration: this.configuration,
         sdkVersions: { audio: '2.0.4', voice: this.configuration?.voiceVersion, rt: this.configuration?.rtVersion } } : {}),
       timing: {

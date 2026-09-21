@@ -21,9 +21,9 @@ function ReplaySession({ fixture, providerName }: { fixture: ReplayFixture; prov
   const [cycle, setCycle] = useState(0);
   useEffect(() => {
     const sessionId = crypto.randomUUID();
-    const provider = providerName === 'jev' ? new HttpDecisionProvider() : new MockDecisionProvider(fixture.script);
-    const cancel = () => { if (provider instanceof HttpDecisionProvider) provider.cancel(); };
     const diagnostics = import.meta.env.DEV && providerName === 'jev' ? new SessionDiagnostics(sessionId, 'text-replay') : undefined;
+    const provider = providerName === 'jev' ? new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration) : new MockDecisionProvider(fixture.script);
+    const cancel = () => { if (provider instanceof HttpDecisionProvider) provider.cancel(); };
     const engine = new CueEngine({ decide: input => diagnostics
       ? diagnostics.decide(input, () => provider.decide(input)) : provider.decide(input) });
     const detach = diagnostics?.attach(engine);

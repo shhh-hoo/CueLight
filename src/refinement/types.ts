@@ -1,9 +1,6 @@
+import type { RefinementConfiguration } from '../runtime-config';
 import type { Cue } from '../cue/types.ts';
 import type { EvidenceFragment } from '../evidence/evidence-buffer.ts';
-
-export const REFINEMENT_MODEL = 'gpt-4.1-mini-2025-04-14';
-export const REFINEMENT_TIMEOUT_MS = 3_000;
-export const MAX_REFINEMENT_CHARS = 16_000;
 
 export type CueTarget = Readonly<{ sessionId: string; cueId: string; sourceRevision: number }>;
 export type RefinementInput = CueTarget & Readonly<{
@@ -17,6 +14,7 @@ export type DisplayCue = Cue & Readonly<{ displayText: string }>;
 export type DisplayState = Readonly<{ currentCue: DisplayCue | null; previousCue: DisplayCue | null }>;
 export type RefinementOutcome = 'applied' | 'unchanged' | 'stale' | 'cancelled' | 'too-large' | RefinementFailure;
 export type RefinementObservation =
+  | { type: 'refinement-configuration'; atMonoMs: number; configuration: RefinementConfiguration }
   | { type: 'refinement-request'; atMonoMs: number; input: RefinementInput; model: string }
   | { type: 'refinement-result'; atMonoMs: number; target: CueTarget; outcome: RefinementOutcome; displayText?: string; failure?: RefinementFailure }
   | { type: 'display-state'; atMonoMs: number; sessionId: string; cues: DisplayState };

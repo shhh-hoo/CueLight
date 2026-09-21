@@ -12,16 +12,13 @@ from aiohttp import WSMsgType, web
 from dotenv import load_dotenv
 from speechmatics.rt import AuthenticationError, ConfigurationError, AudioError
 from speechmatics.voice import (
-    AgentServerMessageType as Event, AudioEncoding, VoiceAgentClient,
-    VoiceAgentConfig, VoiceAgentConfigPreset,
+    AgentServerMessageType as Event, VoiceAgentClient,
 )
 
+from config import GatewayConfig, parse_config
+
+SETTINGS = web.AppKey("settings", GatewayConfig)
 DRAIN_SECONDS = 10
-CONFIGURATION = {
-    "preset": "captions", "language": "cmn_en", "operatingPoint": "enhanced",
-    "audioEncoding": "pcm_f32le", "channels": 1,
-    "voiceVersion": "0.2.8", "rtVersion": "1.1.1",
-}
 ERRORS = {
     "authentication": "Speechmatics authentication failed. Check SPEECHMATICS_API_KEY in .env.local and restart the Voice gateway.",
     "configuration": "Unsupported Voice audio or configuration. Use mono pcm_f32le at 16 kHz and check Speechmatics language access.",
@@ -96,8 +93,8 @@ def local_request(request):
 async def status(request):
     if not local_request(request):
         raise web.HTTPForbidden()
-    return web.json_response({"configured": bool(os.getenv("SPEECHMATICS_API_KEY", "").strip()),
-                              "configuration": CONFIGURATION}, headers={"Cache-Control": "no-store"})
+    return web.json_response({"configured": bool(request.app[SETTINGS].api_key.strip()),
+                              "configuration": request.app[SETTINGS].diagnostics()}, headers={"Cache-Control": "no-store"})
 
 
 async def session(request):
@@ -106,6 +103,7 @@ async def session(request):
         raise web.HTTPForbidden()
     ws = web.WebSocketResponse(max_msg_size=256 * 1024, heartbeat=15)
     await ws.prepare(request)
+    settings = request.app[SETTINGS]
     client = None
     session_id = None
     active = True
@@ -182,18 +180,16 @@ async def session(request):
         if type(rate) is not int or rate not in {8000, 16000} or start.get("encoding") != "pcm_f32le":
             fail("configuration")
             return
-        if not os.getenv("SPEECHMATICS_API_KEY", "").strip():
+        if not settings.api_key.strip():
             fail("authentication")
             return
-        config = VoiceAgentConfigPreset.CAPTIONS(VoiceAgentConfig(
-            language="cmn_en", sample_rate=rate, audio_encoding=AudioEncoding.PCM_F32LE,
-        ))
-        client = DrainingVoiceClient(api_key=os.environ["SPEECHMATICS_API_KEY"], config=config)
+        config = settings.voice_config(rate)
+        client = DrainingVoiceClient(api_key=settings.api_key, config=config)
         client.on(Event.ADD_SEGMENT, on_segment)
         client.on(Event.ERROR, on_error)
         # ADD_PARTIAL_SEGMENT and legacy transcripts have no application handlers.
         await asyncio.wait_for(client.connect(), 10)
-        emit("started", configuration={**CONFIGURATION, "sampleRate": rate})
+        emit("started", configuration=settings.diagnostics(rate))
         while True:
             message = await incoming.get()
             if message.type == WSMsgType.BINARY:
@@ -263,8 +259,10 @@ async def session(request):
     return ws
 
 
-def create_app():
+def create_app(env=None):
+    settings = parse_config(os.environ if env is None else env)
     app = web.Application()
+    app[SETTINGS] = settings
     app.router.add_get('/api/voice/status', status)
     app.router.add_get('/api/voice/session', session)
     return app

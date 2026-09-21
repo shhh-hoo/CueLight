@@ -1,10 +1,12 @@
+import { parseRuntimeConfig } from './runtime-config.ts';
+import type { JevConfiguration } from '../src/runtime-config.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { JevDecisionProvider } from '../src/decision/jev-decision-provider.ts';
 import { validateInput } from './validate-input.ts';
 
 export const MAX_REQUEST_BYTES = 2_000_000;
-type Options = { apiKey?: string; model?: string; transport?: typeof fetch };
+type Options = { apiKey?: string; model?: string; config?: JevConfiguration; transport?: typeof fetch };
 
 function reply(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -13,6 +15,7 @@ function reply(response: ServerResponse, status: number, body: unknown) {
 
 // Local, same-origin endpoint. No separate server process, sessions, or storage.
 export function createJevMiddleware(options: Options) {
+  const config = options.config ?? parseRuntimeConfig({ JEV_MODEL: options.model }).jev;
   return (request: IncomingMessage, response: ServerResponse, next: () => void) => {
     const path = request.url?.split('?')[0];
     if (path !== '/api/jev/status' && path !== '/api/jev/decide') { next(); return; }
@@ -23,7 +26,7 @@ export function createJevMiddleware(options: Options) {
       return;
     }
     if (path === '/api/jev/status' && request.method === 'GET') {
-      reply(response, 200, { configured: !!options.apiKey?.trim(), model: options.model || 'jev-latest' });
+      reply(response, 200, { configured: !!options.apiKey?.trim(), ...config });
       return;
     }
     if (path !== '/api/jev/decide' || request.method !== 'POST') {
@@ -61,7 +64,7 @@ export function createJevMiddleware(options: Options) {
         if (controller.signal.aborted) return;
         let failure: string | null = null;
         const provider = new JevDecisionProvider({
-          apiKey: options.apiKey!, model: options.model, transport: options.transport, signal: controller.signal,
+          apiKey: options.apiKey!, model: config.model, timeoutMs: config.timeoutMs, transport: options.transport, signal: controller.signal,
           onError(message) {
             // Do not reflect arbitrary transport exceptions or upstream payloads.
             failure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.'
@@ -69,7 +72,7 @@ export function createJevMiddleware(options: Options) {
           },
         });
         const decision = await provider.decide(input);
-        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure } : { decision });
+        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure, configuration: config } : { decision, configuration: config });
       } catch {
         if (!response.headersSent && !controller.signal.aborted) reply(response, 400, { error: 'Unable to read decision input.' });
       } finally {

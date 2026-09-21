@@ -16,6 +16,7 @@ export function RefinementControls({ refinement }: { refinement: CueRefinement }
         const data: unknown = await response.json();
         if (!response.ok || !data || typeof data !== 'object' || !('configured' in data) || typeof data.configured !== 'boolean') throw new Error();
         if (!active) return;
+        refinement.configure(data, data.configured);
         setConfigured(data.configured);
         setMessage(data.configured ? 'Optional · uses your OpenAI account. The original Cue appears first.'
           : 'Optional · set OPENAI_API_KEY in .env.local and restart the local server to enable.');
@@ -23,7 +24,7 @@ export function RefinementControls({ refinement }: { refinement: CueRefinement }
       finally { clearTimeout(timer); }
     })();
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [attempt]);
+  }, [attempt, refinement]);
   return <section className="provider-setup" aria-label="Text refinement controls">
     <label><input type="checkbox" checked={snapshot.enabled} disabled={!configured || snapshot.stopped}
       onChange={event => refinement.setEnabled(event.target.checked)} /> Text refinement · preserve meaning, simplify wording</label>

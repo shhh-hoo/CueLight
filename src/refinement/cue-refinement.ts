@@ -1,7 +1,8 @@
+import { refinementConfiguration, type RefinementConfiguration } from '../runtime-config';
 import type { CueEngine } from '../cue/cue-engine';
 import type { Cue } from '../cue/types';
 import { refineCue } from './http-refinement-provider';
-import { MAX_REFINEMENT_CHARS, REFINEMENT_MODEL, refinementMessages, sameTarget,
+import { refinementMessages, sameTarget,
   type CueTarget, type DisplayCue, type DisplayState, type RefinementInput,
   type RefinementObservation, type RefinementOutcome, type RefinementFailure } from './types';
 
@@ -15,6 +16,9 @@ export type RefinementSnapshot = Readonly<{
 export class CueRefinement {
   private snapshot: RefinementSnapshot = { enabled: false, stopped: false, busy: false,
     error: null, lastOutcome: null, cues: { currentCue: null, previousCue: null } };
+  private config: RefinementConfiguration | null = null;
+  private available = false;
+  private initialized = false;
   private listeners = new Set<() => void>();
   private sourceCue: Cue | null = null;
   private latest: RefinementInput | null = null;
@@ -77,7 +81,19 @@ export class CueRefinement {
     if (this.snapshot.enabled && !this.snapshot.stopped) this.queue(this.latest);
   };
 
+  configure(value: unknown, configured: boolean) {
+    if (this.disposed) return;
+    this.config = refinementConfiguration(value);
+    this.available = configured;
+    this.record({ type: 'refinement-configuration', atMonoMs: performance.now(), configuration: this.config });
+    if (!this.initialized) {
+      this.initialized = true;
+      this.setEnabled(configured && this.config.defaultEnabled);
+    } else if (!configured) this.setEnabled(false);
+  }
+
   setEnabled(enabled: boolean) {
+    if (enabled && (!this.available || !this.config)) return;
     if (this.disposed || this.snapshot.stopped || enabled === this.snapshot.enabled) return;
     this.publish({ enabled, error: null });
     if (!enabled) this.cancel();
@@ -106,11 +122,11 @@ export class CueRefinement {
     queueMicrotask(() => this.pump());
   }
   private pump() {
-    if (this.disposed || this.snapshot.stopped || !this.snapshot.enabled || this.job || !this.pending) return;
+    if (this.disposed || this.snapshot.stopped || !this.snapshot.enabled || this.job || !this.pending || !this.config) return;
     const input = this.pending;
     this.pending = null;
     if (!this.isCurrent(input)) return;
-    if (input.sourceText.length + input.referenceContext.reduce((sum, fragment) => sum + fragment.text.length, 0) > MAX_REFINEMENT_CHARS) {
+    if (input.sourceText.length + input.referenceContext.reduce((sum, fragment) => sum + fragment.text.length, 0) > this.config.maxInputChars) {
       this.result(input, 'too-large');
       this.publish({ error: refinementMessages['too-large'] });
       return;
@@ -118,7 +134,7 @@ export class CueRefinement {
     const job = { input, controller: new AbortController(), epoch: this.epoch };
     this.job = job;
     this.publish({ busy: true, error: null });
-    this.record({ type: 'refinement-request', atMonoMs: performance.now(), input, model: REFINEMENT_MODEL });
+    this.record({ type: 'refinement-request', atMonoMs: performance.now(), input, model: this.config.model });
     void this.run(job);
   }
   private isCurrent(input: CueTarget) {
@@ -132,7 +148,9 @@ export class CueRefinement {
   }
   private async run(job: NonNullable<CueRefinement['job']>) {
     try {
-      const reply = await refineCue(job.input, job.controller.signal);
+      const reply = await refineCue(job.input, job.controller.signal, this.config!, configuration => {
+        this.record({ type: 'refinement-configuration', atMonoMs: performance.now(), configuration });
+      });
       if (this.disposed || job.epoch !== this.epoch) { this.result(job.input, 'cancelled'); return; }
       if (!this.isCurrent(job.input)) {
         this.result(job.input, 'stale', 'displayText' in reply ? reply.displayText : undefined,

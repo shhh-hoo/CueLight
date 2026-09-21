@@ -3,11 +3,11 @@ import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 const configuration = { preset: 'captions', language: 'cmn_en', operatingPoint: 'enhanced',
   audioEncoding: 'pcm_f32le', channels: 1, voiceVersion: '0.2.8', rtVersion: '1.1.1', sampleRate: 16000 };
 const text = 'Electronegativity is the ability of an atom to attract a bonding pair of electrons.';
-async function setup(page: Page) {
+async function setup(page: Page, refinementConfig = { configured: false, model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false }, voiceConfig = configuration) {
   const sessions: { ws: WebSocketRoute; id: string; commands: string[]; audio: number }[] = [];
   await page.route('**/api/jev/status', route => route.fulfill({ json: { configured: true, model: 'jev-test' } }));
   await page.route('**/api/voice/status', route => route.fulfill({ json: { configured: true, configuration } }));
-  await page.route('**/api/openai/status', route => route.fulfill({ json: { configured: false } }));
+  await page.route('**/api/openai/status', route => route.fulfill({ json: refinementConfig }));
   await page.routeWebSocket('**/api/voice/session', ws => {
     ws.onMessage(data => {
       if (typeof data !== 'string') { sessions.at(-1)!.audio++; return; }
@@ -16,7 +16,7 @@ async function setup(page: Page) {
         expect(event.sampleRate).toBe(16000);
         expect(event.encoding).toBe('pcm_f32le');
         sessions.push({ ws, id: event.sessionId, commands: ['start'], audio: 0 });
-        ws.send(JSON.stringify({ type: 'started', sessionId: event.sessionId, configuration }));
+        ws.send(JSON.stringify({ type: 'started', sessionId: event.sessionId, configuration: voiceConfig }));
       } else {
         const session = sessions.find(session => session.id === event.sessionId)!;
         session.commands.push(event.type);
@@ -45,9 +45,10 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
     calls++;
     const input = route.request().postDataJSON();
     if (calls === 2) await pending;
-    await route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } });
+    await route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id },
+      configuration: { model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' } } });
   });
-  const sessions = await setup(page);
+  const sessions = await setup(page, undefined, { ...configuration, preset: 'scribe' });
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await expect(page.getByText('Microphone live · you can speak now')).toBeVisible();
   const session = sessions[0]!;
@@ -76,6 +77,10 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
   const stream = (await download.createReadStream())!;
   let json = ''; for await (const chunk of stream) json += chunk;
   const trace = JSON.parse(json);
+  expect(trace.configuration.preset).toBe('scribe');
+  expect(trace.jev).toEqual({ model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' });
+  expect(trace.refinement).toMatchObject({ model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false });
+  expect(json).not.toMatch(/apiKey|Authorization|API_KEY/);
   expect(trace.fragments).toHaveLength(3);
   expect(trace.events.filter((e: { type: string }) => e.type === 'jev-request')).toHaveLength(2);
   expect(trace.segmentDecisions.map((s: { triggeredRequestIds: number[] }) => s.triggeredRequestIds.length)).toEqual([1, 1, 1]);
@@ -146,7 +151,7 @@ test('missing gateway and denied microphone permission are explicit', async ({ p
 
 test('slow optional refinement cannot block later segments, raw Cues, or stop', async ({ page }) => {
   const sessions = await setup(page);
-  await page.route('**/api/openai/status', route => route.fulfill({ json: { configured: true } }));
+  await page.route('**/api/openai/status', route => route.fulfill({ json: { configured: true, model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false } }));
   let release!: () => void;
   let refinements = 0;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -174,4 +179,32 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
   await expect(page.getByText('Session stopped', { exact: true })).toBeVisible();
   release();
   await expect(page.getByTestId('current-cue')).toContainText('A new concept remains visible.');
+});
+
+
+test('safe refinement defaults apply per new session, enforce input limit, and require credentials', async ({ page }) => {
+  let refinementCalls = 0;
+  await page.route('**/api/openai/refine', route => { refinementCalls++; return route.fulfill({ json: { displayText: text } }); });
+  await page.route('**/api/jev/decide', route => {
+    const input = route.request().postDataJSON();
+    return route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } });
+  });
+  const publicConfig = { configured: true, model: 'experiment-model', timeoutMs: 6000, maxInputChars: 10, defaultEnabled: true };
+  const sessions = await setup(page, publicConfig);
+  const checkbox = page.getByRole('checkbox', { name: 'Text refinement', exact: false });
+  await expect(checkbox).toBeChecked();
+  await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect.poll(() => sessions.length).toBe(1);
+  send(sessions[0]!, 'segments', segments(1, [text]));
+  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByText('This Cue exceeds the text refinement limit. The source wording is kept.')).toBeVisible();
+  expect(refinementCalls).toBe(0);
+  await checkbox.uncheck();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(checkbox).toBeChecked();
+  await page.route('**/api/openai/status', route => route.fulfill({ json: { ...publicConfig, configured: false } }));
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(checkbox).not.toBeChecked();
+  await expect(checkbox).toBeDisabled();
+  expect(refinementCalls).toBe(0);
 });

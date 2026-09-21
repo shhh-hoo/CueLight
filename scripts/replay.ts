@@ -1,3 +1,4 @@
+import { parseRuntimeConfig } from '../server/runtime-config';
 import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
@@ -60,6 +61,7 @@ export async function main(args: string[]) {
   if (!fragments.length) throw new Error('Empty range.');
   const env = loadEnv('development', resolve(values['env-dir']), ['TYPESAFE_', 'JEV_']);
   assertJevContext(env.JEV_CONTEXT_VERSION);
+  const config = parseRuntimeConfig(env);
   const apiKey = env.TYPESAFE_API_KEY ?? '';
   if (values.live && !apiKey.trim()) throw new Error('Missing existing configuration.');
   const out = resolve(values.out);
@@ -77,7 +79,8 @@ export async function main(args: string[]) {
     engineSha256: sha(readFileSync('src/cue/cue-engine.ts')),
     contextSha256: sha(readFileSync('src/decision/jev-context.ts')),
     contextVersion: JEV_CONTEXT_VERSION, inputSha256: sha(raw), captionSha256: corpus.rawSha256,
-    sourceUrl: corpus.sourceUrl, modelRequested: values.live ? env.JEV_MODEL || 'jev-latest' : 'offline-QUIET',
+    sourceUrl: corpus.sourceUrl, modelRequested: values.live ? config.jev.model : 'offline-QUIET',
+    jev: values.live ? config.jev : null,
     live: values.live, mode: values.mode, from, to, fragmentCount: fragments.length,
     prefixRunSha256: prefixRaw ? sha(prefixRaw) : null,
     initialState: prefix ? 'reconstructed by same engine from archived decisions BEFORE range; timestamps re-created, no future decisions used' : 'empty',
@@ -95,7 +98,7 @@ export async function main(args: string[]) {
   let wireModel: string | undefined;
   let wireUsage: unknown;
   const jev = new JevDecisionProvider({
-    apiKey, model: env.JEV_MODEL,
+    apiKey, model: config.jev.model, timeoutMs: config.jev.timeoutMs,
     onError: message => { providerFailure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.' ? message : 'Jev returned no usable decision.'; },
     transport: async (url, init) => {
       const response = await fetch(url, init);
@@ -119,7 +122,7 @@ export async function main(args: string[]) {
     const row = active;
     rows.push(row);
     appendFileSync(`${out}.jsonl`, JSON.stringify({ request: { index: row.index,
-      body: buildJevRequest(input, env.JEV_MODEL).body } }) + '\n');
+      body: buildJevRequest(input, config.jev.model).body } }) + '\n');
     providerFailure = undefined; wireModel = undefined; wireUsage = undefined;
     const result = values.live ? await jev.decide(input) : { action: 'QUIET' } as const;
     row.returnedAtMs = now(); row.providerDurationMs = row.returnedAtMs - row.requestedAtMs;
