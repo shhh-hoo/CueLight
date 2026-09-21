@@ -1,12 +1,14 @@
 import { jevConfiguration, type JevConfiguration } from '../runtime-config';
 import { validateDecision, type CueDecisionProvider, type DecisionInput } from './decision-provider';
 import type { CueDecision } from './types';
+import { buildJevOptions, parseJevChoice, type JevChoiceDiagnostics } from './jev-choice';
 
 export class HttpDecisionProvider implements CueDecisionProvider {
   private controller: AbortController | null = null;
 
   constructor(private readonly transport: typeof fetch = (input, init) => fetch(input, init),
-    private readonly observeConfiguration?: (config: JevConfiguration) => void) {}
+    private readonly observeConfiguration?: (config: JevConfiguration) => void,
+    private readonly observeChoice?: (input: DecisionInput, diagnostics: JevChoiceDiagnostics) => void) {}
 
   cancel(): void { this.controller?.abort(); }
 
@@ -29,7 +31,20 @@ export class HttpDecisionProvider implements CueDecisionProvider {
         throw new Error(message);
       }
       if (!data || typeof data !== 'object' || !('decision' in data)) throw new Error('Invalid Jev service response.');
-      return validateDecision(data.decision, input.candidates);
+      const decision = validateDecision(data.decision, input.candidates);
+      if ('diagnostics' in data && data.diagnostics != null) {
+        const options = buildJevOptions(input);
+        const diagnostics = parseJevChoice(data.diagnostics, options);
+        const selected = options.get(diagnostics.choice)!;
+        if (selected.action !== decision.action || (selected.action !== 'QUIET' &&
+            decision.action !== 'QUIET' && selected.candidateId !== decision.candidateId)) {
+          throw new Error('Jev diagnostics do not match the decision.');
+        }
+        if (!controller.signal.aborted) {
+          try { this.observeChoice?.(input, diagnostics); } catch { /* Diagnostics cannot change Cue application. */ }
+        }
+      }
+      return decision;
     } catch (error) {
       if (controller.signal.aborted) throw new Error('Jev request cancelled or timed out.');
       if (error instanceof TypeError) throw new Error('Cannot reach the local Jev service.');

@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { JevDecisionProvider } from '../src/decision/jev-decision-provider.ts';
 import { validateInput } from './validate-input.ts';
+import type { JevChoiceDiagnostics } from '../src/decision/jev-choice.ts';
 
 export const MAX_REQUEST_BYTES = 2_000_000;
 type Options = { apiKey?: string; model?: string; config?: JevConfiguration; transport?: typeof fetch };
@@ -63,8 +64,10 @@ export function createJevMiddleware(options: Options) {
         catch { reply(response, 400, { error: 'Invalid decision input or ungrounded candidates.' }); return; }
         if (controller.signal.aborted) return;
         let failure: string | null = null;
+        let diagnostics: JevChoiceDiagnostics | null = null;
         const provider = new JevDecisionProvider({
           apiKey: options.apiKey!, model: config.model, timeoutMs: config.timeoutMs, transport: options.transport, signal: controller.signal,
+          onChoice(value) { diagnostics = value; },
           onError(message) {
             // Do not reflect arbitrary transport exceptions or upstream payloads.
             failure = /^Jev HTTP \d{3}\.$/.test(message) || message === 'Jev request timed out.'
@@ -72,7 +75,7 @@ export function createJevMiddleware(options: Options) {
           },
         });
         const decision = await provider.decide(input);
-        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure, configuration: config } : { decision, configuration: config });
+        if (!controller.signal.aborted) reply(response, failure ? 502 : 200, failure ? { error: failure, configuration: config } : { decision, diagnostics, configuration: config });
       } catch {
         if (!response.headersSent && !controller.signal.aborted) reply(response, 400, { error: 'Unable to read decision input.' });
       } finally {

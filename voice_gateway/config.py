@@ -25,7 +25,7 @@ class GatewayConfig:
         }
 
 def parse_config(env):
-    preset = env.get('SPEECHMATICS_VOICE_PRESET', 'captions')
+    preset = env.get('SPEECHMATICS_VOICE_PRESET', 'scribe')
     if preset not in PRESETS:
         raise ValueError('SPEECHMATICS_VOICE_PRESET must be captions or scribe.')
     return GatewayConfig(preset=preset, api_key=env.get('SPEECHMATICS_API_KEY', ''))

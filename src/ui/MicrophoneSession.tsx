@@ -14,7 +14,7 @@ const DebugPanel = import.meta.env.DEV ? lazy(() => import('./DebugPanel')) : nu
 function createRuntime() {
   const sessionId = crypto.randomUUID();
   const diagnostics = import.meta.env.DEV ? new SessionDiagnostics(sessionId) : undefined;
-  const http = new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration);
+  const http = new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration, diagnostics?.observeJevChoice);
   const engine = new CueEngine({ decide: input => diagnostics
     ? diagnostics.decide(input, () => http.decide(input)) : http.decide(input) });
   const detach = diagnostics?.attach(engine);
