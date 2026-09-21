@@ -6,7 +6,7 @@ import { refinementConfiguration } from '../src/runtime-config';
 it('defaults, overrides, and allowlisted diagnostics share the effective configuration', () => {
   const defaults = parseRuntimeConfig({});
   expect(defaults.jev).toEqual({ model: 'jev-latest', timeoutMs: 5000, contextVersion: 'structured-v3' });
-  expect(defaults.refinement).toEqual({ model: 'gpt-4.1-mini-2025-04-14', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false });
+  expect(defaults.refinement).toEqual({ model: 'gpt-5.6-luna', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false });
   const config = parseRuntimeConfig({ JEV_MODEL: 'jev-test', JEV_TIMEOUT_MS: '7200', OPENAI_REFINEMENT_MODEL: 'openai-test',
     OPENAI_REFINEMENT_TIMEOUT_MS: '6000', OPENAI_REFINEMENT_MAX_INPUT_CHARS: '8000', OPENAI_REFINEMENT_ENABLED_DEFAULT: 'true', OPENAI_API_KEY: 'secret-test' });
   const journal = new SessionDiagnostics('test');

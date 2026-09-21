@@ -82,7 +82,8 @@ test('real recorder → batch evidence → one Jev cycle; stop waits for trailin
   const trace = JSON.parse(json);
   expect(trace.configuration.preset).toBe('scribe');
   expect(trace.jev).toEqual({ model: 'jev-test', timeoutMs: 5000, contextVersion: 'structured-v3' });
-  expect(trace.refinement).toMatchObject({ model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false });
+  expect(trace.schemaVersion).toBe(3);
+  expect(trace.refinement).toMatchObject({ model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false, style: 'presentation-v1' });
   expect(json).not.toMatch(/apiKey|Authorization|API_KEY/);
   expect(trace.fragments).toHaveLength(3);
   expect(trace.events.filter((e: { type: string }) => e.type === 'jev-request')).toHaveLength(2);
@@ -167,7 +168,7 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
   await page.route('**/api/openai/refine', async route => {
     refinements++;
     await gate;
-    await route.fulfill({ json: { displayText: 'Stale refined wording.' } }).catch(() => {});
+    await route.fulfill({ json: { result: { kind: 'presentation', blocks: [{ kind: 'text', text: 'Stale refined wording.' }] } } }).catch(() => {});
   });
   await page.route('**/api/jev/decide', route => {
     const input = route.request().postDataJSON();
@@ -193,7 +194,7 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
 
 test('safe refinement defaults apply per new session, enforce input limit, and require credentials', async ({ page }) => {
   let refinementCalls = 0;
-  await page.route('**/api/openai/refine', route => { refinementCalls++; return route.fulfill({ json: { displayText: text } }); });
+  await page.route('**/api/openai/refine', route => { refinementCalls++; return route.fulfill({ json: { result: { kind: 'source' } } }); });
   await page.route('**/api/jev/decide', route => {
     const input = route.request().postDataJSON();
     return route.fulfill({ json: { decision: { action: 'NEW_CUE', candidateId: input.candidates[0].id } } });
@@ -206,7 +207,7 @@ test('safe refinement defaults apply per new session, enforce input limit, and r
   await expect.poll(() => sessions.length).toBe(1);
   send(sessions[0]!, 'segments', segments(1, [text]));
   await expect(page.getByTestId('current-cue')).toContainText(text);
-  await expect(page.getByText('This Cue exceeds the text refinement limit. The source wording is kept.')).toBeVisible();
+  await expect(page.getByText('This Cue exceeds the presentation input limit. The source wording is kept.')).toBeVisible();
   expect(refinementCalls).toBe(0);
   await checkbox.uncheck();
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
