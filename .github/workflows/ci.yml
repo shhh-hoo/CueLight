@@ -14,6 +14,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install -r voice_gateway/requirements.txt
+      - run: npm run test:voice
       - run: npm ci
       - run: npm run typecheck
       - run: npm test

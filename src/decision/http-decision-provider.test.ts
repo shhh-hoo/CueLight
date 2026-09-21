@@ -25,15 +25,16 @@ it('rejects unknown candidates and missing decisions', async () => {
   }
 });
 
-it.each(['cancel', 'timeout'])('%s aborts the browser request without retrying', async kind => {
+it('cancel aborts the browser request without retrying; the server owns the deadline', async () => {
   vi.useFakeTimers();
   const transport = vi.fn<typeof fetch>().mockImplementation((_path, init) => new Promise((_resolve, reject) => {
     init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
   }));
   const provider = new HttpDecisionProvider(transport);
   const result = expect(provider.decide(input)).rejects.toThrow('cancelled or timed out');
-  if (kind === 'cancel') provider.cancel();
-  else await vi.advanceTimersByTimeAsync(6_500);
+  await vi.advanceTimersByTimeAsync(6_500);
+  expect(transport.mock.calls[0]![1]?.signal?.aborted).toBe(false);
+  provider.cancel();
   await result;
   expect(transport).toHaveBeenCalledOnce();
   expect(vi.getTimerCount()).toBe(0);

@@ -32,7 +32,7 @@ describe('real local HTTP bridge with fake upstream Jev', () => {
   it('reports missing configuration and does not issue an upstream request', async () => {
     const transport = vi.fn<typeof fetch>();
     const { url, post } = await bridge({ transport });
-    expect(await (await fetch(`${url}/api/jev/status`)).json()).toEqual({ configured: false, model: 'jev-latest' });
+    expect(await (await fetch(`${url}/api/jev/status`)).json()).toEqual({ configured: false, model: 'jev-latest', timeoutMs: 5000, contextVersion: 'structured-v3' });
     const response = await post();
     expect(response.status).toBe(503);
     expect(await response.json()).toHaveProperty('error');
@@ -44,7 +44,7 @@ describe('real local HTTP bridge with fake upstream Jev', () => {
     const { url } = await bridge({ apiKey: 'fake-local-key', model: 'jev-latest', transport });
     const response = await fetch(`${url}/api/jev/status`);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ configured: true, model: 'jev-latest' });
+    expect(await response.json()).toEqual({ configured: true, model: 'jev-latest', timeoutMs: 5000, contextVersion: 'structured-v3' });
     const provider = new HttpDecisionProvider((path, init) => fetch(`${url}${path}`, init));
     const engine = new CueEngine(provider);
     engine.accept(fragment);

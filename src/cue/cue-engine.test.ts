@@ -204,3 +204,20 @@ describe('display lifecycle', () => {
     expect(decide).not.toHaveBeenCalled();
   });
 });
+
+describe('finalized segment batches', () => {
+  it('evaluates a whole batch once and coalesces later batches while in flight', async () => {
+    const first = deferred();
+    const decide = vi.fn().mockImplementationOnce(() => first.promise).mockResolvedValue({ action: 'QUIET' });
+    const engine = engineFor({ decide });
+    engine.acceptBatch([fragment(1), fragment(2)]);
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(decide.mock.calls[0]![0].evidence.fragments).toHaveLength(2);
+    engine.acceptBatch([fragment(3), fragment(4)]);
+    engine.acceptBatch([fragment(5), fragment(6)]);
+    first.resolve({ action: 'QUIET' });
+    await engine.drain();
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(decide.mock.calls[1]![0].evidence.fragments).toHaveLength(6);
+  });
+});

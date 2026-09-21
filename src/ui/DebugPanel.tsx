@@ -11,7 +11,7 @@ export default function DebugPanel({ snapshot, providerName, diagnostics, refine
   return (
     <aside className="debug-panel" aria-label="Developer diagnostics">
       <header><h2>Behind the Cue</h2><span className="eyebrow">Development only</span></header>
-      {diagnostics && <div><button onClick={() => diagnostics.download()}>Export session diagnostics</button><p>Final delivery → adapter → candidates → Jev → Cue-state. Source audio time is separate; browser paint and speech-to-screen latency are not measured.</p><details><summary>Last 20 session events · export includes all recorded events</summary><pre>{JSON.stringify(diagnostics.recentEvents(), null, 2)}</pre></details></div>}
+      {diagnostics && <div><button onClick={() => diagnostics.download()}>Export session diagnostics</button><p>Voice ADD_SEGMENT / replay evidence → candidates → Jev → Cue-state. Source audio time is separate; browser paint and speech-to-screen latency are not measured.</p><details><summary>Last 20 session events · export includes all recorded events</summary><pre>{JSON.stringify(diagnostics.recentEvents(), null, 2)}</pre></details></div>}
       <p>{providerName === 'jev' ? 'Jev provider · inspect decisions against the teaching evidence.' : 'Scripted provider · deterministic behavior, not a semantic quality evaluation.'}</p>
       <dl className="debug-summary">
         <div><dt>Evidence version</dt><dd data-testid="evidence-version">{snapshot.evidence.version}</dd></div>

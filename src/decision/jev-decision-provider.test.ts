@@ -1,3 +1,4 @@
+import { parseRuntimeConfig } from '../../server/runtime-config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DecisionInput } from './decision-provider';
 import { buildJevRequest, JevDecisionProvider, JEV_ENDPOINT } from './jev-decision-provider';
@@ -115,12 +116,15 @@ describe('Jev contract, fake transport only', () => {
     }
   });
 
-  it('times out after 5 seconds even if transport ignores cancellation, without retrying', async () => {
+  it.each([undefined, '7200'])('uses the default or configured deadline (%s) without retrying', async configured => {
+    const config = parseRuntimeConfig({ JEV_TIMEOUT_MS: configured }).jev;
     vi.useFakeTimers();
     const transport = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {}));
     const onError = vi.fn();
-    const result = new JevDecisionProvider({ apiKey: 'test', transport, onError }).decide(input);
-    await vi.advanceTimersByTimeAsync(5_000);
+    const result = new JevDecisionProvider({ apiKey: 'test', transport, onError, timeoutMs: config.timeoutMs }).decide(input);
+    await vi.advanceTimersByTimeAsync(config.timeoutMs - 1);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
     expect(await result).toEqual({ action: 'QUIET' });
     expect(transport.mock.calls[0]![1]!.signal?.aborted).toBe(true);
     expect(onError).toHaveBeenCalledWith('Jev request timed out.');

@@ -61,7 +61,7 @@ export class CueEngine {
 
   connect(source: TeachingEvidenceSource): () => void {
     this.disconnectSource?.();
-    const unsubscribe = source.subscribe(this.accept);
+    const unsubscribe = source.subscribeBatch ? source.subscribeBatch(this.acceptBatch) : source.subscribe(this.accept);
     this.disconnectSource = unsubscribe;
     return () => {
       unsubscribe();
@@ -69,11 +69,14 @@ export class CueEngine {
     };
   }
 
-  accept = (fragment: EvidenceFragment): void => {
-    if (this.disposed) return;
-    let evidence: EvidenceWindow;
+  accept = (fragment: EvidenceFragment): void => { this.acceptBatch([fragment]); };
+
+  // One finalized Voice event updates all its segments before scheduling Jev.
+  acceptBatch = (fragments: readonly EvidenceFragment[]): void => {
+    if (this.disposed || fragments.length === 0) return;
+    let evidence = this.snapshot.evidence;
     try {
-      evidence = appendEvidence(this.snapshot.evidence, fragment);
+      for (const fragment of fragments) evidence = appendEvidence(evidence, fragment);
     } catch (error) {
       this.publish({ inputError: error instanceof Error ? error.message : 'Invalid evidence.' });
       return;

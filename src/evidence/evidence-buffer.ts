@@ -3,6 +3,12 @@ export type EvidenceFragment = Readonly<{
   text: string;
   startMs: number;
   endMs: number;
+  sessionId?: string;
+  sequence?: number;
+  cycle?: number;
+  receivedAtMonoMs?: number;
+  speakerId?: string;
+  language?: string;
 }>;
 
 export type EvidenceWindow = Readonly<{

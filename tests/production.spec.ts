@@ -28,7 +28,7 @@ test('preview serves the local Jev configuration endpoint without leaking creden
   const response = await request.get('/api/jev/status');
   expect(response.status()).toBe(200);
   const value = await response.json();
-  expect(Object.keys(value).sort()).toEqual(['configured', 'model']);
+  expect(Object.keys(value).sort()).toEqual(['configured', 'contextVersion', 'model', 'timeoutMs']);
   expect(typeof value.configured).toBe('boolean');
   expect(typeof value.model).toBe('string');
   // No real decision calls in browser tests, including when a developer has a key configured.

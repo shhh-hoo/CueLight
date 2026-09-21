@@ -1,3 +1,4 @@
+import { parseRuntimeConfig } from '../../server/runtime-config.ts';
 // Server-only: do not import this module from App or any browser entrypoint.
 import type { CueDecisionProvider, DecisionInput } from './decision-provider.ts';
 import { QUIET, type CueDecision } from './types.ts';
@@ -5,8 +6,6 @@ import { buildJevRequest } from './jev-context.ts';
 export { buildJevRequest } from './jev-context.ts';
 
 export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
-export const JEV_TIMEOUT_MS = 5_000;
-
 
 function parseAnswer(value: unknown, options: ReadonlyMap<string, CueDecision>): CueDecision {
   if (!value || typeof value !== 'object' || !('answers' in value)) throw new Error('Missing Jev answers.');
@@ -37,6 +36,7 @@ export class JevDecisionProvider implements CueDecisionProvider {
   constructor(private readonly options: {
     apiKey: string;
     model?: string;
+    timeoutMs?: number;
     transport?: typeof fetch;
     signal?: AbortSignal;
     onError?: (message: string) => void;
@@ -58,7 +58,7 @@ export class JevDecisionProvider implements CueDecisionProvider {
         timer = setTimeout(() => {
           reject(new Error('Jev request timed out.'));
           controller.abort();
-        }, JEV_TIMEOUT_MS);
+        }, this.options.timeoutMs ?? parseRuntimeConfig({}).jev.timeoutMs);
       });
       const call = async () => {
         const response = await (this.options.transport ?? fetch)(JEV_ENDPOINT, {

@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const devPort = Number(process.env.CUELIGHT_TEST_DEV_PORT ?? 5173);
+const devUrl = `http://127.0.0.1:${devPort}`;
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -8,11 +11,13 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   use: { ...devices['Desktop Chrome'], trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
-    { name: 'development', testMatch: /(?:replay|jev)\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:5173' } },
+    { name: 'development', testMatch: /(?:replay|jev)\.spec\.ts/, use: { baseURL: devUrl } },
+    { name: 'microphone', testMatch: 'microphone.spec.ts', use: { baseURL: devUrl,
+      launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } } },
     { name: 'production', testMatch: 'production.spec.ts', use: { baseURL: 'http://127.0.0.1:4173' } },
   ],
   webServer: [
-    { command: 'npm run dev -- --port 5173 --strictPort', url: 'http://127.0.0.1:5173', reuseExistingServer: !process.env.CI },
-    { command: 'npm run preview -- --port 4173 --strictPort', url: 'http://127.0.0.1:4173', reuseExistingServer: !process.env.CI },
+    { command: `npm run dev -- --port ${devPort} --strictPort`, url: devUrl, reuseExistingServer: false },
+    { command: 'npm run preview -- --port 4173 --strictPort', url: 'http://127.0.0.1:4173', reuseExistingServer: false },
   ],
 });

@@ -1,3 +1,4 @@
+import { parseRuntimeConfig } from '../../server/runtime-config.ts';
 import type { DecisionInput } from './decision-provider.ts';
 import { QUIET, type CueDecision } from './types.ts';
 
@@ -10,7 +11,7 @@ export function assertJevContext(value?: string): void {
   }
 }
 
-export function buildJevRequest(input: DecisionInput, model = 'jev-latest') {
+export function buildJevRequest(input: DecisionInput, model = parseRuntimeConfig({}).jev.model) {
   const options = new Map<string, CueDecision>([['QUIET', QUIET]]);
   const latestInput = input.evidence.fragments.at(-1) ?? null;
   const current = input.currentCue;
