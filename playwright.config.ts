@@ -11,7 +11,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   use: { ...devices['Desktop Chrome'], trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
-    { name: 'development', testMatch: /(?:replay|jev|presentation)\.spec\.ts/, use: { baseURL: devUrl } },
+    { name: 'development', testMatch: /(?:replay|jev|presentation|alive)\.spec\.ts/, use: { baseURL: devUrl } },
     { name: 'microphone', testMatch: 'microphone.spec.ts', use: { baseURL: devUrl,
       launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } } },
     { name: 'production', testMatch: 'production.spec.ts', use: { baseURL: 'http://127.0.0.1:4173' } },
