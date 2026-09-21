@@ -23,7 +23,7 @@ export function JevSetup({ onReady }: { onReady: (ready: boolean) => void }) {
         setReady(value.configured);
         onReady(value.configured);
         setMessage(value.configured
-          ? `Jev ready · ${value.model}. Starting a replay uses your TypeSafe account.`
+          ? `Jev ready · ${value.model}. Starting a session uses your TypeSafe account.`
           : 'Add TYPESAFE_API_KEY to .env.local, restart the local server, then check again. Your key stays on the server.');
       } catch {
         if (active) setMessage('Jev is unavailable. Run CueLight with npm run dev or npm run preview, then check again.');

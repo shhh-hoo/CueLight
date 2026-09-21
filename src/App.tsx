@@ -6,6 +6,7 @@ import { replayFixtures, type ReplayFixture } from './replay/replay-fixtures';
 import { ReplayEvidenceSource } from './replay/replay-source';
 import { CueSurface } from './ui/CueSurface';
 import { JevSetup } from './ui/JevSetup';
+import { MicrophoneSession } from './ui/MicrophoneSession';
 
 const DebugPanel = import.meta.env.DEV ? lazy(() => import('./ui/DebugPanel')) : null;
 type ProviderName = 'mock' | 'jev';
@@ -59,6 +60,7 @@ function ReplayView({ runtime: { engine, replay, cancel }, fixture, providerName
 }
 
 export default function App() {
+  const [inputMode, setInputMode] = useState<'replay' | 'microphone'>('replay');
   const [fixtureId, setFixtureId] = useState(replayFixtures[0]!.id);
   const [providerName, setProviderName] = useState<ProviderName>('mock');
   const fixture = replayFixtures.find(item => item.id === fixtureId)!;
@@ -67,11 +69,14 @@ export default function App() {
       <header className="app-header">
         <a className="wordmark" href="/" aria-label="CueLight home"><span className="brand-mark" aria-hidden="true"><i /></span>CueLight</a>
         <div className="session-selectors">
+          <label className="lesson-picker"><span>Input source</span><select aria-label="Input source" value={inputMode} onChange={event => setInputMode(event.target.value as 'replay' | 'microphone')}><option value="replay">Text replay</option><option value="microphone">Microphone</option></select></label>
+          {inputMode === 'replay' && <>
           <label className="lesson-picker"><span>Decision provider</span><select aria-label="Decision provider" value={providerName} onChange={event => setProviderName(event.target.value as ProviderName)}><option value="mock">Scripted demo</option><option value="jev">Jev</option></select></label>
           <label className="lesson-picker"><span>Explore a lesson</span><select aria-label="Lesson" value={fixtureId} onChange={event => setFixtureId(event.target.value)}>{replayFixtures.map(item => <option key={item.id} value={item.id}>{item.subject}</option>)}</select></label>
+          </>}
         </div>
       </header>
-      <ReplaySession key={`${fixture.id}-${providerName}`} fixture={fixture} providerName={providerName} />
+      {inputMode === 'microphone' ? <MicrophoneSession /> : <ReplaySession key={`${fixture.id}-${providerName}`} fixture={fixture} providerName={providerName} />}
       <footer className="app-footer"><p>Keep the idea in view.</p><p>A teaching-attention experiment</p></footer>
     </main>
   );

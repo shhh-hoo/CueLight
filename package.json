@@ -18,6 +18,8 @@
     "replay": "node scripts/replay.mjs"
   },
   "dependencies": {
+    "@speechmatics/browser-audio-input": "2.0.4",
+    "@speechmatics/real-time-client": "8.5.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
