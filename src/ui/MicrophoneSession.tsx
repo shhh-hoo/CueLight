@@ -1,7 +1,7 @@
 import { LessonStore, browserJournal } from '../alive/journal';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CueEngine } from '../cue/cue-engine';
-import { HttpDecisionProvider } from '../decision/http-decision-provider';
+import { HttpSemanticProvider } from '../decision/http-semantic-provider';
 import { DECISION_DRAIN_MS } from '../speechmatics/config';
 import { SessionDiagnostics } from '../speechmatics/session-diagnostics';
 import { SpeechmaticsEvidenceSource } from '../speechmatics/speechmatics-source';
@@ -15,14 +15,14 @@ const DebugPanel = import.meta.env.DEV ? lazy(() => import('./DebugPanel')) : nu
 function createRuntime() {
   const sessionId = crypto.randomUUID();
   const diagnostics = import.meta.env.DEV ? new SessionDiagnostics(sessionId) : undefined;
-  const http = new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration, diagnostics?.observeJevChoice);
-  const engine = new CueEngine({ decide: input => diagnostics
-    ? diagnostics.decide(input, () => http.decide(input)) : http.decide(input) }, undefined, new LessonStore(browserJournal(sessionId)));
+  const http = new HttpSemanticProvider(undefined, diagnostics?.observeJevConfiguration);
+  const engine = new CueEngine(http, undefined, new LessonStore(browserJournal(sessionId)));
+  engine.configureTeacherCapture(sessionId);
   const detach = diagnostics?.attach(engine);
   const refinement = new CueRefinement(sessionId, engine, diagnostics?.observeRefinement);
   const source = new SpeechmaticsEvidenceSource({
     sessionId, observe: diagnostics?.observe,
-    drainDecisions: async () => { try { await engine.drain(DECISION_DRAIN_MS); } finally { refinement.finish(); } },
+    drainDecisions: async () => { engine.stopOptionalInspections(); try { await engine.drain(DECISION_DRAIN_MS); } finally { refinement.finish(); } },
     abandonDecisions: () => { refinement.finish(); engine.dispose(); http.cancel(); },
   });
   engine.connect(source);
@@ -99,8 +99,8 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
     <CueSurface cues={snapshot.cues} display={refined.cues} />
     <JevSetup onReady={setJevReady} />
     <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Voice gateway again</button>}</div>
-    {(input.error || input.inputError || snapshot.inputError || snapshot.lastDecision?.error) &&
-      <p className="provider-error" role="alert">{input.error ?? input.inputError ?? snapshot.inputError ?? snapshot.lastDecision?.error}</p>}
+    {(input.error || input.inputError || snapshot.inputError || (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)) &&
+      <p className="provider-error" role="alert">{input.error ?? input.inputError ?? snapshot.inputError ?? (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)}</p>}
     <section className="replay-controls" aria-label="Microphone controls"><div className="buttons">
       <button className="primary-button" disabled={busy || (input.status !== 'running' && (!jevReady || !speechmaticsReady))}
         onClick={() => input.status === 'running' ? void source.stop() : start()}>
