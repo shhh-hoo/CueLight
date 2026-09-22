@@ -54,7 +54,26 @@ describe('bounded relevance and allocation', () => {
     const set = semanticWorkingSet(h.store.getSnapshot(), { maxCues: 8 });
     expect(set.cues.map(c => c.cueId).slice(0, 2)).toEqual([ids[9], ids[8]]);
     expect(set.cues).toHaveLength(8); expect(set.coverage.omittedCueIds).toContain(ids[0]);
-    expect(semanticWorkingSet(h.store.getSnapshot(), { explicitCueIds: [ids[0]!], maxCues: 8 }).cues[0]?.cueId).toBe(ids[0]);
+    expect(semanticWorkingSet(h.store.getSnapshot(), { explicitCueIds: [ids[0]!], recalledCueIds: [ids[1]!], maxCues: 8 })
+      .cues.slice(0, 3).map(c => c.cueId)).toEqual([ids[0], ids[1], ids[9]]);
+  });
+  it('ranks a recent revision above seven ancient occurrences without displacing foreground', () => {
+    const h = classroom(), ids = Array.from({ length: 10 }, (_, i) => h.create(`C${i + 1}`));
+    for (let i = 0; i < 7; i++) h.accept([{ type: i % 2 ? 'RECALL' : 'MENTION', cueId: ids[i]!,
+      basis: [binding(h.store.getSnapshot(), `f${i + 1}`)] }], { readSet: h.read(ids[i]!) });
+    h.revise(ids[8]!);
+    const set = semanticWorkingSet(h.store.getSnapshot(), { maxCues: 8 });
+    expect(set.cues.map(c => c.cueId)).toEqual([ids[9], ids[8], ...ids.slice(1, 7).reverse()]);
+    expect(set.coverage.omittedCueIds).toContain(ids[0]);
+  });
+  it.each(['MENTION', 'RECALL'] as const)('ranks a recent %s above an older revision, preserving explicit and foreground priority', kind => {
+    const h = classroom(), a = h.create('A'), b = h.create('B'), foreground = h.create('Foreground');
+    h.revise(a);
+    h.accept([{ type: kind, cueId: b, basis: [binding(h.store.getSnapshot(), 'f2')] }], { readSet: h.read(b) });
+    const state = h.store.getSnapshot();
+    expect(semanticWorkingSet(state).cues.map(c => c.cueId)).toEqual([foreground, b, a]);
+    expect(semanticWorkingSet(state, { explicitCueIds: [a] }).cues.map(c => c.cueId)).toEqual([a, foreground, b]);
+    expect(semanticWorkingSet({ ...state, attention: { ...state.attention, currentCueId: a } }).cues.map(c => c.cueId)).toEqual([a, b, foreground]);
   });
   it('uses accepted ordering for settled Cues even when timestamps and insertion order are misleading', () => {
     const h = classroom(), a = h.create('A'), b = h.create('B');
@@ -100,8 +119,20 @@ describe('bounded relevance and allocation', () => {
       const options = candidates.filter(c => c.source.alias === source.alias);
       for (const action of ['WAIT', 'NO_CHANGE', 'CREATE', 'RECALL', 'WITHDRAW', 'RELATION_INTENT']) expect(options.some(c => c.action === action)).toBe(true);
       expect(options.filter(c => c.mode === 'append')).toHaveLength(8);
-      expect(options.some(c => c.mode === 'replace')).toBe(true);
+      for (const action of ['RECALL', 'WITHDRAW', 'RELATION_INTENT']) expect(options.filter(c => c.action === action)).toHaveLength(8);
+      for (const mode of ['replace', 'criticise']) expect(options.filter(c => c.mode === mode).length).toBeGreaterThanOrEqual(2);
     }
+    const partChoices = candidates.filter(c => c.partId);
+    expect(partChoices).toHaveLength(23);
+    expect(partChoices.filter(c => c.mode === 'replace')).toHaveLength(15);
+    expect(partChoices.filter(c => c.mode === 'criticise')).toHaveLength(8);
+    for (const cue of input.workingSet.cues) {
+      expect(new Set(partChoices.filter(c => c.cueId === cue.cueId).map(c => c.mode))).toEqual(new Set(['replace', 'criticise']));
+      expect(partChoices.filter(c => c.cueId === cue.cueId).every(c => c.partId === input.workingSet.partTargetOrder[cue.cueId]![0])).toBe(true);
+    }
+    const allChoices = [...candidates, ...coverage.omittedOperations];
+    expect(new Set(allChoices.map(c => JSON.stringify([c.action, c.source.alias, c.cueId, c.partId, c.mode]))).size).toBe(297);
+    expect(operationCandidates(input).candidates).toEqual(candidates);
     expect(coverage).toMatchObject({ contextComplete: true, candidateComplete: false, complete: false, contextBlocked: false });
     expect(buildSemanticRequest(input).state.coverage).toMatchObject({ contextComplete: true, candidateComplete: false, complete: false, omittedOperationCount: 169 });
     expect(() => validateSemanticInput(input)).not.toThrow();

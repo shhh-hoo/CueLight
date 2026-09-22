@@ -114,12 +114,15 @@ export function operationCandidates(input: SemanticInput) {
           ...(action === 'REVISE' ? { mode: 'append' as const } : {}) });
       }
     }
-    // Phase C: ranked part rounds, then mode, Cue and source. Bounds never
-    // privilege all parts of S1 over the entire operation universe of S2/S3.
-    for (let rank = 0; rank < MAX_PART_TARGETS; rank++) for (const mode of ['replace', 'criticise'] as const) {
-      for (const cue of cues) for (const { source, teacher } of sources) {
+    // Phase C: part rank → source-offset round → mode → Cue. Rotating the
+    // starting source per Cue represents both modes for every Cue before moving
+    // to another source round, without reserving special-case mode slots.
+    const teacherSources = sources.filter(s => s.teacher);
+    for (let rank = 0; rank < MAX_PART_TARGETS; rank++) for (let offset = 0; offset < teacherSources.length; offset++) {
+      for (const mode of ['replace', 'criticise'] as const) for (const [index, cue] of cues.entries()) {
+        const { source } = teacherSources[(index + offset) % teacherSources.length]!;
         const partId = rankedParts.get(cue.cueId)![rank];
-        if (teacher && partId) add({ action: 'REVISE', mode, source, cueId: cue.cueId, cueRevision: cue.currentSemanticRevision, partId });
+        if (partId) add({ action: 'REVISE', mode, source, cueId: cue.cueId, cueRevision: cue.currentSemanticRevision, partId });
       }
     }
   }

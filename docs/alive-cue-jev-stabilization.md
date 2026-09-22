@@ -11,16 +11,16 @@ Cue order before the eight-Cue bound:
 
 1. Explicit/recalled IDs supplied by Host, preserving their specified order.
 2. Current foreground.
-3. Cues with accepted MENTION/RECALL occurrences, descending latest occurrence sequence.
-4. Semantically revised Cues, descending last semantic acceptance sequence.
-5. Other Host-relevant IDs, then remaining open Cues by most recent accepted relevance.
-6. Remaining settled Cues by most recent accepted relevance.
+3. All remaining eligible Cues by unified latest accepted relevance:
+   `max(latest semantic revision sequence, latest MENTION/RECALL sequence)`.
+   Initial establishment supplies the semantic sequence when no later revision exists.
 
 The list is deduplicated; withdrawn/nonexistent objects are excluded. Explicit IDs
 that cannot fit are reported as missing required context. Recency uses lesson-local
 accepted event sequence, not timestamps or reversed object insertion. Ties use Cue ID.
-Explicitly relevant and recently used settled objects can rank ahead of remaining
-open objects; final settled ordering applies to those not already selected.
+Occurrence, revision and open/settled status confer no permanent category priority.
+A recent revision beats an ancient occurrence, and a recent occurrence beats an
+older revision. Other relevance hints do not override this cross-event comparison.
 
 Part ranking is derived from full accepted revision history locally, then only the
 ranking and current semantic revision cross the HTTP boundary. Explicit Host part
@@ -36,15 +36,21 @@ Primary candidates are allocated in three deterministic phases:
 - A: every source gets WAIT, NO_CHANGE, and teacher-authorized CREATE.
 - B: action rounds over Cue × source for RECALL, teacher-authorized REVISE append,
   WITHDRAW, and RELATION_INTENT (one starting Cue only).
-- C: part-rank rounds, then replace/criticise mode, Cue, and source, until capacity.
+- C: part rank → source-offset round → replace/criticise mode → Cue. Within each
+  round, Cue index `i` uses teacher source `(i + offset) % teacherSourceCount`.
+  Each round represents both modes across the Cues while rotating sources; all
+  source offsets are visited before moving to the next part rank. No mode receives
+  a one-off reserved slot.
 
 For three teacher sources, eight Cues and at least four parts each, the bounded
 universe is **9 + 96 + 192 = 297** candidates. The provider receives **128**:
 all 105 source/Cue choices and the first 23 fairly interleaved part choices. The
 other **169** are explicitly omitted; additional parts beyond four are separately
-reported. Each source retains all its source/Cue choices and receives part choices.
-Later part modes/ranks may be omitted; this is visible candidate coverage loss, not
-a promise that every possible edit fits. A mandatory set over 128 returns no
+reported. The 23 part choices contain **15 replace and 8 criticise** options. All
+eight Cues receive both modes for their highest-ranked part, and all three sources
+receive both modes (at least two of each). Each source retains all its source/Cue
+choices. Later source/part combinations may be omitted; this is visible candidate
+coverage loss, not a promise that every possible edit fits. A mandatory set over 128 returns no
 candidates and blocks explicitly. This is unreachable for valid three-source input;
 validation also rejects out-of-bound transports.
 
@@ -154,8 +160,8 @@ separate diagnostic list.
 
 The historical relation-closure test now requires omission instead of budget
 overflow. The browser request-shape assertion includes source-omission diagnostics.
-Local validation passed typecheck, **301 unit/contract/HTTP tests** (including
-**23 new stabilization regressions**), production build, **26 browser tests**, **7 Voice
+Initial stabilization validation passed typecheck, **301 unit/contract/HTTP tests** (including
+**23 stabilization regressions**), production build, **26 browser tests**, **7 Voice
 SDK tests**, and `git diff --check`. Final-head GitHub CI and the frozen SHA are
 recorded in PR #16.
 
@@ -172,6 +178,26 @@ Exact files changed from the starting head:
 - `docs/alive-cue-jev-stabilization.md` (new)
 - `docs/alive-cue-jev-proposals.md`
 - `README.md`
+
+## Final deterministic follow-up
+
+Baseline: `b98015068f858efce04bf30f797fcbeeeecff6c1`. This follow-up changes only
+`src/alive/projection.ts`, `src/alive/inspection.ts`,
+`src/alive/stabilization.test.ts`, and this document. The final ranking and Phase C
+rules above supersede the earlier permanent occurrence/revision categories and
+mode-first expansion. No other stabilized subsystem or limit changed.
+
+Three new regression cases cover seven ancient occurrences competing with a new
+C9 revision, and newer MENTION/RECALL beating an older revision. Existing tests now
+also verify explicit/recalled Host order, foreground priority, both modes for every
+Cue and source under the 128-option bound, top-part priority, deterministic output,
+and 297 unique candidates with exactly 169 omissions. The two residual defects
+were reproduced by failing regressions before implementation.
+
+Final follow-up local validation passed: **304 unit/contract/HTTP tests** (26 focused
+stabilization cases), **26 Playwright tests**, **7 Voice SDK tests**, typecheck,
+production build and `git diff --check`. Final-head CI and the frozen commit are
+recorded in PR #16. The 12-call live qualification remains unexecuted.
 
 ## Deferred behavior and live evaluation
 

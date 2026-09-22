@@ -82,12 +82,10 @@ export function semanticWorkingSet(state: LessonState, options: WorkingSetOption
   const latest = (c: CueRecord) => Math.max(revisionOrder(c), occurrence.get(c.cueId) ?? 0);
   const all = Object.values(state.cues).filter(c => currentRevision(c).standing === 'current');
   const recent = (a: CueRecord, b: CueRecord) => latest(b) - latest(a) || a.cueId.localeCompare(b.cueId);
-  const open = all.filter(c => c.development === 'open');
-  const mentioned = all.filter(c => occurrence.has(c.cueId)).sort((a, b) => occurrence.get(b.cueId)! - occurrence.get(a.cueId)! || recent(a, b));
-  const revised = all.filter(c => c.currentSemanticRevision > 1).sort((a, b) => revisionOrder(b) - revisionOrder(a) || recent(a, b));
+  // Event types and lifecycle do not grant permanent ranking priority. Compare
+  // each Cue's latest accepted relevance across occurrences and semantic history.
   const requested = [...new Set([...explicit, ...(state.attention.currentCueId ? [state.attention.currentCueId] : []),
-    ...mentioned.map(c => c.cueId), ...revised.map(c => c.cueId), ...(options.relevantCueIds ?? []),
-    ...open.sort(recent).map(c => c.cueId), ...all.filter(c => c.development === 'settled').sort(recent).map(c => c.cueId)])];
+    ...all.sort(recent).map(c => c.cueId)])];
   const cueIds = requested.filter(id => state.cues[id] && currentRevision(state.cues[id]!).standing === 'current').slice(0, maxCues);
   const cueSet = new Set(cueIds);
   // Relations are context only when BOTH endpoints already fit the selected view.
