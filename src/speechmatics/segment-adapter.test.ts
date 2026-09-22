@@ -31,11 +31,12 @@ describe('Voice ADD_SEGMENT boundary', () => {
     }
     expect(adapter.accept({ ...event(1, segment(1)), sessionId: 'old' }, 1)).toBeNull();
   });
-  it('rejects an entire malformed or repeated event without corrupting sequence', () => {
+  it('rejects malformed events and treats exact retransmissions idempotently', () => {
     const adapter = new VoiceSegmentAdapter('test');
     expect(adapter.accept(event(1, segment(1), { ...segment(2), text: 'x'.repeat(4097) }), 1)?.outcome).toBe('invalid');
     expect(adapter.accept(event(1, segment(1)), 2)?.outcome).toBe('accepted');
-    expect(adapter.accept(event(1, segment(1)), 3)?.outcome).toBe('invalid');
+    expect(adapter.accept(event(1, segment(1)), 3)?.fragments).toEqual([]);
+    expect(adapter.accept(event(1, segment(1, 'Changed source')), 3)?.outcome).toBe('invalid');
     expect(adapter.accept(event(2, segment(2)), 4)?.fragments[0]?.id).toBe('test:2');
   });
 });

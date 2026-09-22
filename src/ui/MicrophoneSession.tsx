@@ -1,3 +1,4 @@
+import { LessonStore, browserJournal } from '../alive/journal';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CueEngine } from '../cue/cue-engine';
 import { HttpDecisionProvider } from '../decision/http-decision-provider';
@@ -16,7 +17,7 @@ function createRuntime() {
   const diagnostics = import.meta.env.DEV ? new SessionDiagnostics(sessionId) : undefined;
   const http = new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration, diagnostics?.observeJevChoice);
   const engine = new CueEngine({ decide: input => diagnostics
-    ? diagnostics.decide(input, () => http.decide(input)) : http.decide(input) });
+    ? diagnostics.decide(input, () => http.decide(input)) : http.decide(input) }, undefined, new LessonStore(browserJournal(sessionId)));
   const detach = diagnostics?.attach(engine);
   const refinement = new CueRefinement(sessionId, engine, diagnostics?.observeRefinement);
   const source = new SpeechmaticsEvidenceSource({

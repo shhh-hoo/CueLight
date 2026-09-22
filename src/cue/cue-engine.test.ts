@@ -221,3 +221,32 @@ describe('finalized segment batches', () => {
     expect(decide.mock.calls[1]![0].evidence.fragments).toHaveLength(6);
   });
 });
+
+describe('Alive Cue ownership behind the legacy display', () => {
+  it('retains every accepted Cue and all original evidence beyond display/window eviction', async () => {
+    const engine = engineFor({ decide: async input => newest(input) });
+    engine.accept(fragment(1)); await flush();
+    const a = engine.getSnapshot().cues.currentCue!.id;
+    engine.accept({ ...fragment(2), startMs: 600_000, endMs: 600_000 }); await flush();
+    expect(engine.getSnapshot().evidence.fragments).toHaveLength(1);
+    expect(engine.getSnapshot().lesson.evidenceOrder).toHaveLength(2);
+    expect(engine.getSnapshot().lesson.cues[a]).toBeDefined();
+    await vi.advanceTimersByTimeAsync(4_001);
+    expect(engine.getSnapshot().cues.previousCue).toBeNull();
+    expect(Object.keys(engine.getSnapshot().lesson.cues)).toHaveLength(2);
+  });
+  it('keeps service failures recorded, never accounted as understood', async () => {
+    const engine = engineFor({ decide: async () => { throw new Error('Service unavailable'); } });
+    engine.accept(fragment(1)); await flush();
+    expect(engine.getSnapshot().lesson.processing.f1?.ranges[0]?.status).toBe('recorded');
+    expect(engine.getSnapshot().lastDecision?.outcome).toBe('fallback');
+  });
+  it('treats exact source retransmission idempotently, with no additional provider request', async () => {
+    const decide = vi.fn(async () => ({ action: 'QUIET' as const })); const engine = engineFor({ decide });
+    engine.accept(fragment(1)); await flush(); engine.accept(fragment(1)); await flush();
+    expect(decide).toHaveBeenCalledOnce();
+    expect(engine.getSnapshot().lesson.evidenceOrder).toEqual(['f1']);
+    expect(engine.getSnapshot().evidence.version).toBe(1);
+    expect(engine.getSnapshot().lesson.processing.f1?.ranges[0]?.status).toBe('wait');
+  });
+});

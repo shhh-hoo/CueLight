@@ -263,5 +263,6 @@ it('presentation enabled and disabled produce identical candidates, Jev inputs/d
   expect(records[1]).toEqual(records[0]);
   expect(cues[1]).toEqual(cues[0]);
   expect(JSON.stringify(records[1])).not.toContain('DISPLAY ONLY');
+  expect(JSON.stringify(sessions[1]!.engine.exportLesson())).not.toContain('DISPLAY ONLY');
   expect(sessions[1]!.refinement.getSnapshot().cues.currentCue?.presentation.kind).toBe('presentation');
 });
