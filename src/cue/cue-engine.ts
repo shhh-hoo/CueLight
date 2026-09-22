@@ -1,6 +1,8 @@
+import { InspectionSuspensions } from '../alive/inspection-suspension';
+import { checkReadSet } from '../alive/reducer';
 import { SemanticProviderError } from '../decision/semantic-failure';
 import { accounting } from '../alive/evidence';
-import { buildSemanticRequest, captureInspection, captureRelation, compileProposal, operationCandidates, rangeKey, validateSemanticInput, type SemanticInput, type SemanticProvider, type SemanticTrace } from '../alive/inspection';
+import { buildSemanticRequest, captureInspection, captureRelation, compileProposal, operationCandidates, rangeKey, validateSemanticInput, visibleReadSet, type SemanticInput, type SemanticProvider, type SemanticTrace } from '../alive/inspection';
 import { buildCandidates, type Candidate } from '../candidates/candidate-builder';
 import { systemClock, type Clock } from '../clock';
 import { validateDecision, type CueDecisionProvider, type DecisionInput } from '../decision/decision-provider';
@@ -54,7 +56,9 @@ export class CueEngine {
   private listeners = new Set<() => void>();
   private inFlight = false;
   private optionalEnabled = true;
-  private relationInFlight = false;
+  private activeRelation: SemanticInput | null = null;
+  private pendingRelation: SemanticInput | null = null;
+  private suspensions = new InspectionSuspensions();
   private semanticObservers = new Set<(trace: SemanticTrace) => void>();
   private dirty = false;
   private generation = 0;
@@ -75,7 +79,11 @@ export class CueEngine {
   observeSemantics(observer: (trace: SemanticTrace) => void) {
     this.semanticObservers.add(observer); return () => { this.semanticObservers.delete(observer); };
   }
-  stopOptionalInspections() { this.optionalEnabled = false; }
+  stopOptionalInspections() {
+    this.optionalEnabled = false;
+    if (this.pendingRelation) this.reportRelationScheduling(this.pendingRelation, 'invalidated', 'Optional work stopped before this pending relation could start.');
+    this.pendingRelation = null;
+  }
   configureTeacherCapture(captureId: string) {
     const s = this.lesson.getSnapshot();
     this.acceptProposal({ proposalId: `role-${this.proposalPrefix}-${++this.proposalSequence}`, origin: 'host',
@@ -92,6 +100,13 @@ export class CueEngine {
     if (this.disposed) throw new Error('Engine disposed.');
     this.lesson.accept(proposal, this.clock.now());
     this.refreshLesson();
+    // Only a changed suspended dependency can wake old source without new input.
+    if ('inspect' in this.provider && proposal.operations.some(op => op.type === 'BIND_ROLE')) {
+      const excluded = this.suspensions.excluded(this.lesson.getSnapshot());
+      if (captureInspection(this.lesson.getSnapshot(), 'eligibility-check', {}, excluded)) {
+        if (this.inFlight) this.dirty = true; else void this.evaluateLatest();
+      }
+    }
   }
   private refreshLesson(): void {
     const lesson = this.lesson.getSnapshot();
@@ -161,6 +176,7 @@ export class CueEngine {
   reset(): void {
     this.generation++;
     this.optionalEnabled = true;
+    this.clearInspectionScheduling();
     for (const check of this.drainListeners) check();
     this.dirty = false;
     this.proposalSequence = 0;
@@ -172,6 +188,7 @@ export class CueEngine {
   }
 
   dispose(): void {
+    this.clearInspectionScheduling();
     this.disposed = true;
     this.generation++;
     for (const check of this.drainListeners) check();
@@ -249,43 +266,73 @@ export class CueEngine {
     }
   }
 
+  private reportRelationScheduling(input: SemanticInput, outcome: 'queued' | 'superseded' | 'invalidated', error: string | null) {
+    this.reportSemantic({ input, candidates: operationCandidates(input), outcome, error, durationMs: 0,
+      foregroundCueId: this.lesson.getSnapshot().attention.currentCueId });
+  }
+  private clearInspectionScheduling() {
+    if (this.activeRelation) this.reportRelationScheduling(this.activeRelation, 'invalidated', 'Session reset or disposed.');
+    if (this.pendingRelation) this.reportRelationScheduling(this.pendingRelation, 'invalidated', 'Session reset or disposed.');
+    this.activeRelation = null; this.pendingRelation = null; this.suspensions.clear();
+  }
+  private scheduleRelation(provider: SemanticProvider, input: SemanticInput) {
+    if (!this.optionalEnabled) { this.reportRelationScheduling(input, 'invalidated', 'Optional work stopped.'); return; }
+    if (this.activeRelation) {
+      if (this.pendingRelation) this.reportRelationScheduling(this.pendingRelation, 'superseded', `Coalesced into newer relation inspection ${input.inspectionId}.`);
+      this.pendingRelation = input;
+      this.reportRelationScheduling(input, 'queued', null);
+      return;
+    }
+    // Pending snapshots retain their captured meaning. Never silently rebase them.
+    try { checkReadSet(this.lesson.getSnapshot(), visibleReadSet(input)); }
+    catch (error) { this.reportRelationScheduling(input, 'invalidated', String(error)); return; }
+    const generation = this.generation;
+    this.activeRelation = input;
+    void this.inspectSemantic(provider, input, generation).finally(() => {
+      if (generation !== this.generation || this.activeRelation !== input || this.disposed) return;
+      this.activeRelation = null;
+      const pending = this.pendingRelation; this.pendingRelation = null;
+      if (pending) this.scheduleRelation(provider, pending);
+    });
+  }
   private async evaluateSemantic(provider: SemanticProvider): Promise<void> {
     this.inFlight = true; this.dirty = false;
     const generation = this.generation;
-    const excluded = new Set<string>();
-    let staleRetries = 0, step = 0;
+    // A lineage is the same primary source range, recaptured at most once.
+    // Independent sources in the same burst each receive their own allowance.
+    const staleRetries = new Map<string, string>();
+    let step = 0;
     try {
       for (; step < 32 && !this.disposed && generation === this.generation; step++) {
-        const input = captureInspection(this.lesson.getSnapshot(), `inspection-${this.proposalPrefix}-${++this.proposalSequence}`, {}, excluded);
-        if (!input) break;
+        const state = this.lesson.getSnapshot(), excluded = this.suspensions.excluded(state);
+        if (this.suspensions.atCapacity) { this.publish({ inputError: 'Inspection suspension capacity reached; evidence is retained. Reset the session before resuming automatic inspection.' }); break; }
+        const captured = captureInspection(state, `inspection-${this.proposalPrefix}-${++this.proposalSequence}`, {}, excluded);
+        if (!captured) break;
+        const lineage = rangeKey(captured.sources[0]!.ranges);
+        const parentInspectionId = staleRetries.get(lineage);
+        const input: SemanticInput = parentInspectionId ? { ...captured, parentInspectionId } : captured;
         this.publish({ status: 'in-flight', semanticRequest: input });
-        const before = accounting(this.lesson.getSnapshot()).accountedCodeUnits;
+        const before = accounting(state).accountedCodeUnits;
         const result = await this.inspectSemantic(provider, input, generation);
         if (this.disposed || generation !== this.generation) break;
         if (!result) {
-          // A bounded fresh capture can resolve a real dependency race. Never
-          // rebase the old choice, retry a failed transport, or account failure.
-          if (this.snapshot.lastSemantic?.outcome === 'stale' && staleRetries++ < 1) continue;
-          input.sources.flatMap(s => s.ranges).forEach(ref => excluded.add(rangeKey([ref])));
+          if (this.snapshot.lastSemantic?.outcome === 'stale' && !staleRetries.has(lineage)) {
+            staleRetries.set(lineage, input.inspectionId); continue;
+          }
+          this.suspensions.suspend(this.lesson.getSnapshot(), input.sources.flatMap(s => s.ranges));
           continue;
         }
+        staleRetries.delete(lineage);
         if (result.event.processing[0]?.kind === 'WAIT') {
-          result.event.processing[0].ranges.forEach(ref => excluded.add(rangeKey([ref])));
+          this.suspensions.suspend(this.lesson.getSnapshot(), result.event.processing[0].ranges);
         } else if (accounting(this.lesson.getSnapshot()).accountedCodeUnits <= before) {
           this.publish({ inputError: 'Semantic inspection made no processing progress.' }); break;
         }
-        if (this.optionalEnabled && !this.relationInFlight) {
-          const relation = captureRelation(this.lesson.getSnapshot(), input, result.judgment, result.event);
-          if (relation) {
-            this.relationInFlight = true;
-            // Optional follow-up cannot block source-first publication or the
-            // next primary operation. A changed endpoint rejects its own result.
-            void this.inspectSemantic(provider, relation, generation).finally(() => { this.relationInFlight = false; });
-          }
-        }
+        const relation = captureRelation(this.lesson.getSnapshot(), input, result.judgment, result.event);
+        if (relation) this.scheduleRelation(provider, relation);
       }
       if (step === 32 && !this.disposed && generation === this.generation &&
-        captureInspection(this.lesson.getSnapshot(), 'budget-check', {}, excluded)) {
+        captureInspection(this.lesson.getSnapshot(), 'budget-check', {}, this.suspensions.excluded(this.lesson.getSnapshot()))) {
         this.publish({ inputError: 'Semantic inspection budget reached; remaining evidence is unresolved.' });
       }
     } finally {

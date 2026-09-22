@@ -110,7 +110,8 @@ export class SessionDiagnostics {
     return {
       schemaVersion: 4, buildRevision: import.meta.env.VITE_BUILD_REVISION ?? 'unknown', sessionId: this.sessionId, source: this.source, recordingFailed: this.recordingFailed,
       contextVersion: this.jev?.contextVersion ?? 'alive-jev-v1',
-      semanticAttempts: this.events.filter(e => e.type === 'semantic-inspection' && e.trace.outcome !== 'started'),
+      semanticAttempts: this.events.filter(e => e.type === 'semantic-inspection' && !['started', 'queued', 'superseded', 'invalidated'].includes(e.trace.outcome)),
+      semanticScheduling: this.events.filter(e => e.type === 'semantic-inspection' && ['queued', 'superseded', 'invalidated'].includes(e.trace.outcome)),
       uniqueSemanticProviderAttempts: new Set(this.events.filter(e => e.type === 'semantic-inspection' && e.trace.outcome === 'started').map(e => e.type === 'semantic-inspection' ? e.trace.input.inspectionId : '')).size,
       jev: this.jev ?? null,
       refinement: this.refinement ? { ...this.refinement, style: 'presentation-v1' } : null,

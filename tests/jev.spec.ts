@@ -49,7 +49,7 @@ test('Jev HTTP decisions drive the existing Engine and preserve Cue identity on 
   await page.clock.runFor(6_200);
   await expect(page.getByTestId('current-cue')).toContainText('Diffusion is the net movement');
   await expect(page.getByTestId('previous-cue')).toContainText(osmosis);
-  expect(payloadKeys.every(keys => JSON.stringify(keys) === JSON.stringify(['contract', 'inspectionId', 'sessionEpoch', 'sessionId', 'sources', 'stage', 'workingSet']))).toBe(true);
+  expect(payloadKeys.every(keys => JSON.stringify(keys) === JSON.stringify(['contract', 'inspectionId', 'omittedSourceAlternatives', 'sessionEpoch', 'sessionId', 'sources', 'stage', 'workingSet']))).toBe(true);
 });
 
 test('Jev failure keeps the existing Cue and shows a service error outside the learner surface', async ({ page }) => {

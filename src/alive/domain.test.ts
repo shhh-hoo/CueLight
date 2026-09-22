@@ -296,15 +296,16 @@ it('persists an exact selected Asset version separately from what the teacher sa
   expect(h.store.getSnapshot().evidence.t?.text).toBe('Use the standard definition here.');
 });
 
-it('requires current role revisions and all dependencies of a relation in a bounded Working Set', () => {
+it('requires current role revisions and omits relations whose endpoints do not fit the bounded Working Set', () => {
   const h = seed();
   const b = h.accept([{ type: 'CREATE', identityKey: 'B', parts: [h.part('b', 'f3')], basis: [h.ref('f3')] }]).createdCueIds.B!;
   h.accept([{ type: 'RELATE', relation: { relationId: 'r', relationRevision: 1, fromCueId: b, toCueId: h.a,
     family: 'classroom_discourse', kind: 'REFERENCES', basisRefs: [h.ref('f3')], assetRefs: [], dependencyReadSet: h.read(h.a, b), status: 'current' } }],
     { readSet: { ...h.read(h.a, b), relations: { r: 0 } } });
   const working = semanticWorkingSet(h.store.getSnapshot(), { explicitCueIds: [b], maxCues: 1 });
-  expect(working.cues.map(cue => cue.cueId)).toEqual([b, h.a]);
-  expect(working.coverage.contextBlocked).toBe(true);
-  expect(working.readSet.relations).toEqual({ r: 1 });
+  expect(working.cues.map(cue => cue.cueId)).toEqual([b]);
+  expect(working.coverage.contextBlocked).toBe(false);
+  expect(working.coverage.omittedRelationIds).toEqual(['r']);
+  expect(working.readSet.relations).toEqual({});
   expect(() => checkReadSet(h.store.getSnapshot(), { roles: { unknown: 1 } })).toThrow(/Stale/);
 });

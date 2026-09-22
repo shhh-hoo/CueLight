@@ -40,6 +40,9 @@ lookup recovers old Cues; presentation never enters evidence; one source may gro
 several Cues without duplicate accounting; per-object readSets isolate unrelated
 writes; LessonJournal is backend-independent. No additional blocking redesign was needed.
 
+See [the stabilization contract](alive-cue-jev-stabilization.md) for the final bounded
+ranking, suspension, dependency, coverage and relation scheduling rules.
+
 ## Request decomposition
 
 One primary Choice chooses a fully grounded operation candidate. IDs, source spans,
@@ -55,7 +58,8 @@ quoted examples and criticised examples. These questions avoid multiplying every
 operation/part option by every stance or relation.
 
 Primary actions: WAIT, NO_CHANGE, CREATE, REVISE (append / replace one part /
-mark a part as criticised), RECALL, WITHDRAW. Local correction never replaces
+mark a part as criticised), RECALL, WITHDRAW, and RELATION_INTENT (select an origin
+for optional relation-only interpretation; no Cue mutation or foreground effect). Local correction never replaces
 untouched conditions. WITHDRAW is a teacher-grounded conditional option whose
 rubric requires direct classroom invalidation; semantic entailment remains a Jev
 judgment requiring live qualification, not a lexical Host classifier. Student and
@@ -70,13 +74,14 @@ retrieval, split/merge, background repair, or free-form patch/text generation.
 Reuse PR #15's projection defaults: eight Cues and 16,000 evidence code units.
 Only current Cue revisions are transported, never full revision history. Source
 candidates include the first punctuation-delimited legal subrange, the whole
-remaining pending range if different, and up to two prior open-tail ranges with
-the new unit. There are at most three sources, four replaceable part targets per
+remaining pending range if different, then separate alternatives pairing ONE prior
+open tail with the new unit. Independent tails are never pre-merged. There are at most three sources, four replaceable part targets per
 Cue and 128 primary options. The provider body has a 48,000-code-unit guard.
 These are explicit initial bounds, not validated semantic or token thresholds.
 
-Coverage records missing/omitted Cue IDs, omitted evidence, part targets, operation
-options and source alternatives. Provider coverage carries bounded omission summaries
+Coverage records missing/omitted Cue IDs, relations, evidence, part targets, operation
+options and source alternatives. Context and candidate completeness are separate;
+overall completeness requires both. Provider coverage carries bounded omission summaries
 without copying omitted transcript bodies. Missing required context blocks the call
 and remains unresolved. A correct target absent from candidates is a coverage
 failure; an evaluator may attribute a wrong choice to the model only after inspecting
@@ -91,13 +96,14 @@ options and instructions. It never accepts browser-generated prompts or patches.
 The compiler attaches proposal/inspection identity, session/epoch, origin `jev`,
 contract and acceptance-policy versions, selected grounded candidate, evidence
 scope, processing disposition, provider probabilities/confidence, model identity
-and actual read dependencies. The existing LessonStore is the only writer.
+and the provider-visible Cue, relation, role and supplied-source processing dependencies. The existing LessonStore is the only writer.
 
 CREATE uses a new Host identity; REVISE preserves identity and unaffected parts;
 RECALL appends occurrence without advancing semanticRevision; WITHDRAW appends
 withdrawn standing. Accepted events/replay retain the exact source and judgment.
 Retries with identical proposal payloads return the original event; changed payloads
-fail. A stale primary result gets at most one fresh recapture, never textual rebasing.
+fail. A stale primary lineage gets at most one fresh recapture, never textual rebasing.
+Separate primary source lineages have separate allowances.
 
 WAIT is an accepted unresolved processing state. NO_CHANGE means understood without
 semantic mutation. Failures do not account anything. Transport, timeout, HTTP,
@@ -107,7 +113,9 @@ there are no automatic confidence thresholds or silent provider retries.
 
 After each accepted non-WAIT primary step, accounting must strictly increase.
 Another bounded inspection may process the remainder of a Final. WAIT/failure
-ranges are not re-run in the same unchanged burst; new evidence permits recapture.
+ranges are suspended across bursts until their own processing or matching role
+dependencies change. Fresh evidence can offer a separate continuation alternative;
+it does not unlock unchanged tails for standalone inspection.
 Independent later evidence can advance while an earlier tail remains unresolved.
 A burst is capped at 32 primary steps; exhaustion is visible and retains pending
 source. Already-accounted evidence can still ground a later explicit domain operation
@@ -115,14 +123,16 @@ without becoming a new processing step.
 
 ## Optional relations and compatibility
 
-After accepting CREATE/REVISE/RECALL, only an explicit relationship-evidence judgment
-can request the optional second inspection. It captures accepted endpoint revisions
+After accepting CREATE/REVISE/RECALL, an explicit relationship-evidence judgment
+can request the optional second inspection. RELATION_INTENT can request it directly
+for a relation-only statement without a content mutation or recall. It captures accepted endpoint revisions
 and its own proposal/readSet/evidence. Allowed choices are NONE, ELABORATES,
 EXAMPLE_OF, CONTRASTS_WITH, RECAPS and REFERENCES. Automatic CAUSES/DEPENDS_ON is
 not enabled here. Domain APIs still require teacher grounding for classroom-domain
 relations. A relation failure/stale result cannot roll back creation, and relation
-acceptance never selects foreground. There is one optional relation slot; it has
-no background queue or guaranteed discovery. New optional work stops during drain.
+acceptance never selects foreground. There is one active relation slot plus one latest-useful pending snapshot.
+Superseded/stale/stopped pending work is explicitly diagnosed; primary work never
+waits for it. New optional work stops during drain.
 
 CREATE and RECALL narrowly select compatibility foreground. A REVISE to offscreen
 A leaves B foreground; a current revision refreshes in place. Display never decides
@@ -162,10 +172,18 @@ capture/stop/reset, source-first presentation, cancellation, narrow layout and
 production isolation checks. One batched Voice event can now cause more than one
 semantic step; tests no longer equate a provider Final with one permanent decision.
 
-Final local validation passed: typecheck, 278 unit/contract/HTTP tests, production
+Initial Slice III validation passed: typecheck, 278 unit/contract/HTTP tests, production
 build, 26 browser tests, seven Voice SDK tests and the whitespace/diff check. The
 32/33-unit boundary tests verify that inspection stops at its bound and reports
 exhaustion only when eligible source remains. Final-commit CI is linked in the PR.
+
+One inspection still selects one primary operation. Multiple punctuation subranges
+may advance sequentially, but a compound utterance can contain additional semantic
+changes that realtime Jev misses. Raw evidence and accepted history are preserved;
+future Slice VII Background OpenAI semantics may reread them and submit bounded
+proposals through the same writer. That system, richer student adoption/attention,
+and historical annotation presentation are deliberately unimplemented. Criticised,
+corrected, superseded and withdrawn historical wording is not erased.
 
 ## Explicit remaining work
 
