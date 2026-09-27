@@ -5,7 +5,9 @@ import { HttpSemanticProvider } from '../decision/http-semantic-provider';
 import { DECISION_DRAIN_MS } from '../speechmatics/config';
 import { SessionDiagnostics } from '../speechmatics/session-diagnostics';
 import { SpeechmaticsEvidenceSource } from '../speechmatics/speechmatics-source';
-import { CueSurface } from './CueSurface';
+import { TraceWorkspace } from './TraceWorkspace';
+import { TraceSession } from '../trace/session';
+import type { LeaveGuard } from '../trace/types';
 import { JevSetup } from './JevSetup';
 import { CueRefinement } from '../refinement/cue-refinement';
 import { RefinementControls } from './RefinementControls';
@@ -16,7 +18,9 @@ function createRuntime() {
   const sessionId = crypto.randomUUID();
   const diagnostics = import.meta.env.DEV ? new SessionDiagnostics(sessionId) : undefined;
   const http = new HttpSemanticProvider(undefined, diagnostics?.observeJevConfiguration);
-  const engine = new CueEngine(http, undefined, new LessonStore(browserJournal(sessionId)));
+  const store = new LessonStore(browserJournal(sessionId));
+  const engine = new CueEngine(http, undefined, store);
+  const trace = new TraceSession(engine, 'microphone');
   engine.configureTeacherCapture(sessionId);
   const detach = diagnostics?.attach(engine);
   const refinement = new CueRefinement(sessionId, engine, diagnostics?.observeRefinement);
@@ -26,12 +30,24 @@ function createRuntime() {
     abandonDecisions: () => { refinement.finish(); engine.dispose(); http.cancel(); },
   });
   engine.connect(source);
-  return { sessionId, engine, source, diagnostics, refinement,
-    dispose() { refinement.dispose(); source.dispose(); engine.dispose(); http.cancel(); detach?.(); } };
+  const detachSource = source.subscribeStatus(() => {
+    const input = source.getSnapshot();
+    trace.phase(input.status === 'running' || input.status === 'connecting' ? 'capturing' : input.status === 'error' ? 'interrupted' : input.status);
+    if (input.error) trace.issue('capture', input.error);
+    if (input.inputError) trace.issue('capture', input.inputError);
+  });
+  const detachPresentation = refinement.subscribe(() => trace.presentation(refinement.getSnapshot().cues));
+  const dispose = () => {
+    if (['running', 'connecting', 'stopping'].includes(source.getSnapshot().status)) trace.phase('interrupted');
+    trace.dispose(); refinement.dispose(); source.dispose(); engine.dispose(); http.cancel(); detach?.(); detachSource(); detachPresentation();
+  };
+  return { sessionId, engine, source, trace, diagnostics, refinement, dispose,
+    deleteLocal() { dispose(); trace.deleteLocalMetadata(); store.delete(); } };
+
 }
 type Runtime = ReturnType<typeof createRuntime>;
 
-export function MicrophoneSession() {
+export function MicrophoneSession({ guard }: { guard: LeaveGuard }) {
   const current = useRef<Runtime | null>(null);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const reset = useCallback(() => {
@@ -50,10 +66,10 @@ export function MicrophoneSession() {
     return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
   }, [reset]);
   return runtime ? <MicrophoneView key={runtime.sessionId}
-    runtime={runtime} reset={reset} /> : <p role="status">Preparing microphone mode…</p>;
+    runtime={runtime} reset={reset} guard={guard} /> : <p role="status">Preparing microphone mode…</p>;
 }
 
-function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Runtime }) {
+function MicrophoneView({ runtime, reset, guard }: { runtime: Runtime; reset: () => Runtime; guard: LeaveGuard }) {
   const { engine, source, diagnostics, refinement } = runtime;
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
   const input = useSyncExternalStore(source.subscribeStatus, source.getSnapshot);
@@ -90,13 +106,13 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
   }[input.status];
   const busy = input.status === 'connecting' || input.status === 'stopping';
   const start = () => {
+    if ((input.status === 'stopped' || input.status === 'error') && !guard.current()) return;
     const next = input.status === 'stopped' || input.status === 'error' ? reset() : runtime;
     void next.source.start();
   };
   return <>
-    <div className="lesson-heading"><div><p className="eyebrow">Live teaching / Microphone</p><h2>Keep the teaching point in view</h2><p>Speak naturally. CueLight keeps selected teaching content on screen.</p></div>
+    <div className="lesson-heading"><div><p className="eyebrow">Live teaching / Microphone</p><h2>记录自己的讲授</h2><p>自然讲述，随后核对教学对象、发展过程和原话。Stop 后记录继续保留。</p></div>
       <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p></div>
-    <CueSurface cues={snapshot.cues} display={refined.cues} />
     <JevSetup onReady={setJevReady} />
     <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Voice gateway again</button>}</div>
     {(input.error || input.inputError || snapshot.inputError || (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)) &&
@@ -107,9 +123,10 @@ function MicrophoneView({ runtime, reset }: { runtime: Runtime; reset: () => Run
         {input.status === 'running' ? 'Stop microphone' : input.status === 'stopping' ? 'Finishing session…'
           : input.status === 'connecting' ? 'Connecting…' : input.status === 'error' ? 'Reconnect microphone'
             : input.status === 'stopped' ? 'Start new session' : 'Start microphone'}
-      </button><button className="reset-button" onClick={() => reset()}>Reset</button>
+      </button><button className="reset-button" onClick={() => { if (guard.current()) reset(); }}>Reset</button>
     </div><p>Microphone <span>·</span> Mandarin / English <span>·</span> Jev</p></section>
     <RefinementControls refinement={refinement} />
+    <TraceWorkspace engine={engine} trace={runtime.trace} guard={guard} onDelete={() => { runtime.deleteLocal(); reset(); }} />
     {DebugPanel && <div className="debug-toggle"><button aria-expanded={debugOpen} onClick={() => setDebugOpen(open => !open)}>{debugOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button></div>}
     {DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName="jev" diagnostics={diagnostics} refinement={refined} /></Suspense>}
   </>;

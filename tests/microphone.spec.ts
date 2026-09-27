@@ -1,6 +1,8 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import { semanticReply } from './semantic-mock';
 
+test.beforeEach(({ page }) => { page.on('dialog', dialog => dialog.accept()); });
+
 const configuration = { preset: 'captions', language: 'cmn_en', operatingPoint: 'enhanced',
   audioEncoding: 'pcm_f32le', channels: 1, voiceVersion: '0.2.8', rtVersion: '1.1.1', sampleRate: 16000 };
 const text = 'Electronegativity is the ability of an atom to attract a bonding pair of electrons.';
@@ -56,9 +58,9 @@ test('real recorder → batch evidence → bounded semantic steps; stop waits fo
   send(session, 'AddPartialSegment', segments(1, ['Never displayed']));
   send(session, 'AddTranscript', segments(1, ['word']));
   send(session, 'segments', segments(1, ['Okay, moving on.', text]));
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   expect(calls).toBe(2);
-  await expect(page.getByRole('region', { name: 'Learner surface' })).not.toContainText('Never displayed');
+  await expect(page.getByRole('region', { name: '教师 TRACE' })).not.toContainText('Never displayed');
   await page.getByRole('button', { name: 'Stop microphone' }).click();
   await expect.poll(() => session.commands).toContain('stop');
   send(session, 'segments', segments(2, ['The last sentence is retained.']));
@@ -69,7 +71,10 @@ test('real recorder → batch evidence → bounded semantic steps; stop waits fo
   release();
   await expect(page.getByText('Session stopped', { exact: true })).toBeVisible();
   expect(session.commands).toEqual(['start', 'stop', 'finish']);
-  await expect(page.getByTestId('current-cue')).toContainText('The last sentence is retained.');
+  await expect(page.getByTestId('cue-choice')).toHaveCount(2);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
+  await page.getByTestId('cue-choice').nth(1).click();
+  await expect(page.getByTestId('cue-detail')).toContainText('The last sentence is retained.');
   await page.getByRole('button', { name: 'Show diagnostics' }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export session diagnostics' }).click();
@@ -116,11 +121,11 @@ test('reset cancels old Jev; a second session rejects old events; gateway loss i
   expect(fresh.id).not.toBe(sessions[0]!.id);
   send(fresh, 'segments', { ...segments(1, ['Wrong session.']), sessionId: sessions[0]!.id });
   send(fresh, 'segments', segments(1, [text]));
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   expect(calls).toBe(2);
   fresh.ws.close();
   await expect(page.getByRole('alert')).toContainText('WebSocket connection was lost');
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
 });
 
 test('Jev error leaves the Cue intact while provider errors interrupt with an actionable message', async ({ page }) => {
@@ -134,10 +139,10 @@ test('Jev error leaves the Cue intact while provider errors interrupt with an ac
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await expect(page.getByText('Microphone live · you can speak now')).toBeVisible();
   send(sessions[0]!, 'segments', segments(1, [text]));
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   send(sessions[0]!, 'segments', segments(2, ['Another sentence.']));
   await expect(page.getByRole('alert')).toContainText('Jev could not make a decision');
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   send(sessions[0]!, 'error', { code: 'authentication', message: 'do-not-reflect-provider-body' });
   await expect(page.getByRole('alert')).toContainText('Speechmatics authentication failed');
   await expect(page.getByRole('alert')).not.toContainText('do-not-reflect');
@@ -176,16 +181,18 @@ test('slow optional refinement cannot block later segments, raw Cues, or stop', 
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await expect(page.getByText('Microphone live · you can speak now')).toBeVisible();
   send(sessions[0]!, 'segments', segments(1, [text]));
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   await expect.poll(() => refinements).toBe(1);
   send(sessions[0]!, 'segments', segments(2, ['A new concept remains visible.']));
-  await expect(page.getByTestId('current-cue')).toContainText('A new concept remains visible.');
+  await expect(page.getByTestId('cue-choice')).toHaveCount(2);
+  await page.getByTestId('cue-choice').nth(1).click();
+  await expect(page.getByTestId('cue-detail')).toContainText('A new concept remains visible.');
   await page.getByRole('button', { name: 'Stop microphone' }).click();
   await expect.poll(() => sessions[0]!.commands).toContain('stop');
   send(sessions[0]!, 'drained');
   await expect(page.getByText('Session stopped', { exact: true })).toBeVisible();
   release();
-  await expect(page.getByTestId('current-cue')).toContainText('A new concept remains visible.');
+  await expect(page.getByTestId('cue-detail')).toContainText('A new concept remains visible.');
 });
 
 
@@ -203,7 +210,7 @@ test('safe refinement defaults apply per new session, enforce input limit, and r
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await expect.poll(() => sessions.length).toBe(1);
   send(sessions[0]!, 'segments', segments(1, [text]));
-  await expect(page.getByTestId('current-cue')).toContainText(text);
+  await expect(page.getByTestId('cue-detail')).toContainText(text);
   await expect(page.getByText('This Cue exceeds the presentation input limit. The source wording is kept.')).toBeVisible();
   expect(refinementCalls).toBe(0);
   await checkbox.uncheck();

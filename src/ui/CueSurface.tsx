@@ -10,7 +10,7 @@ const relationships = {
   moves_to: { text: 'moves to', symbol: '→' },
 } as const;
 
-function CueContent({ sourceText, presentation }: { sourceText: string; presentation?: PresentationResult }) {
+export function CueContent({ sourceText, presentation }: { sourceText: string; presentation?: PresentationResult }) {
   if (!presentation || presentation.kind === 'source') return <p className="cue-text">{sourceText}</p>;
   return <div className="cue-presentation" data-presentation-kind="presentation">
     {presentation.blocks.map((block, index) => {
