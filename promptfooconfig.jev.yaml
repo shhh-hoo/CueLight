@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: CueLight alive-jev-v1 curated semantic inspections (LIVE; may incur TypeSafe/Jev cost)
+prompts:
+  - '{{caseId}}'
+providers:
+  - id: file://prompts/jev-semantic/evals/provider.ts
+    label: CueLight production semantic path
+tests: file://prompts/jev-semantic/evals/cases.ts
+sharing: false
+evaluateOptions:
+  maxConcurrency: 1
+  cache: false

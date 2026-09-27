@@ -47,6 +47,18 @@ npm run preview
 
 The production browser bundle has the same teacher Display, Flow and archive support. Offline replay/provider selectors are confined to the explicit `/dev` test route; the debug panel, upstream Jev adapter and credentials are absent from production. Fonts use local system fallbacks. Scripted mode makes no external requests. The tab-scoped lesson journal remains recoverable; the UI starts a new capture on reload.
 
+## Jev prompt workflow
+
+See [the Jev semantic prompt module](prompts/jev-semantic/README.md) for the current contract, executable wording, curated cases and offline verification.
+
+```sh
+npm run eval:jev:validate
+npm run eval:jev
+npm run eval:jev:view
+```
+
+**`eval:jev` is LIVE and may incur TypeSafe/Jev cost.** Config validation is provider-free; CI runs only validation and deterministic tests.
+
 ## Enable Jev locally
 
 1. Copy `.env.example` to `.env.local` and set `TYPESAFE_API_KEY` to your TypeSafe API key. This file is ignored by Git. Never use a `VITE_` prefix for credentials.
