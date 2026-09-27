@@ -35,4 +35,3 @@ export function segments(cycle: number, texts: string[]) {
   return { cycle, segments: texts.map((text, index) => ({ text, sequence: cycle * 10 + index,
     startSeconds: cycle * 3 + index, endSeconds: cycle * 3 + index + .8, speakerId: 'S1', language: 'en' })) };
 }
-
