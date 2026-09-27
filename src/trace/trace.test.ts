@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { binding } from '../alive/evidence';
 import { fixtureHost, foundationReplayFixture, sharedSourceFixture } from '../alive/fixtures';
+import { captureInspection, captureRelation, compileProposal, parseSemanticJudgment,
+  type OperationCandidate, type SemanticInput } from '../alive/inspection';
+import { mockJudgmentResponse } from '../alive/inspection-fixtures';
 import { replayLesson } from '../alive/journal';
 import { semanticWorkingSet } from '../alive/projection';
 import { CueEngine } from '../cue/cue-engine';
@@ -14,7 +17,63 @@ import { MAX_ARCHIVE_BYTES } from './validation';
 const wrap = (history = foundationReplayFixture().history): TraceArchive => ({ format: 'cuelight-trace', version: 1,
   history, workspace: { notes: {}, record: unknownRecord, presentations: [] } });
 
+function nativeHistory() {
+  const h = fixtureHost('native-trace'); let inspection = 0;
+  h.accept([{ type: 'BIND_ROLE', binding: { bindingId: 'teacher', revision: 1,
+    subject: { kind: 'capture', id: 'native-trace' }, role: 'teacher', basis: 'configured',
+    basisRefs: ['fixture-input'], sourceRanges: [] } }], { readSet: { roles: { teacher: 0 } } });
+  const apply = (select: (c: OperationCandidate) => boolean, relation = 'NONE',
+    input: SemanticInput = captureInspection(h.store.getSnapshot(), `native-${++inspection}`)!) => {
+    const judgment = parseSemanticJudgment(mockJudgmentResponse(input, select, 'asserted', relation), input);
+    const event = h.store.accept(compileProposal(input, judgment), inspection * 100);
+    return { input, judgment, event };
+  };
+  h.record('A is X.'); const created = apply(c => c.action === 'CREATE');
+  const a = Object.values(created.event.createdCueIds)[0]!;
+  h.record('B is independent.'); apply(c => c.action === 'CREATE');
+  h.record('A is Z instead of X, in contrast to B.');
+  const revised = apply(c => c.action === 'REVISE' && c.cueId === a && c.mode === 'replace', 'EXPLICIT');
+  const relation = captureRelation(h.store.getSnapshot(), revised.input, revised.judgment, revised.event)!;
+  apply(c => c.action === 'RELATE' && c.relationKind === 'CONTRASTS_WITH', 'NONE', relation);
+  return { history: h.store.export(), lesson: h.store.getSnapshot(), a };
+}
+
 describe('teacher TRACE projection and portable history', () => {
+  it('round-trips native accepted Jev candidates, exact history and replay through TRACE and file import', async () => {
+    const { history, lesson, a } = nativeHistory();
+    const native = history.events.filter(e => e.inspection);
+    expect(native.map(e => e.inspection?.selectedCandidate.action)).toEqual(['CREATE', 'CREATE', 'REVISE', 'RELATE']);
+    expect(native[0]!.inspection).toMatchObject({ contractVersion: 'alive-jev-v1',
+      selectedCandidate: { source: { alias: 'S1', ranges: [binding(lesson, 'f1')] } } });
+    expect(native[2]!.inspection?.selectedCandidate).toMatchObject({ cueId: a, cueRevision: 1,
+      partId: 'part-native-1', mode: 'replace' });
+    expect(native[3]!.inspection?.selectedCandidate).toMatchObject({ relationKind: 'CONTRASTS_WITH' });
+    const archive = wrap(history), json = serializeTrace(archive);
+    const imported = await readTraceFile(new File([json], 'native.trace.json', { type: 'application/json' }));
+    for (const opened of [openTrace(json), imported, openTrace(JSON.stringify(history))]) {
+      expect(opened.archive.history).toEqual(history);
+      expect(opened.lesson).toEqual(lesson);
+      expect(projectTrace(opened.archive.history, opened.lesson).steps.map(s => s.kind)).toEqual(['CREATE', 'CREATE', 'REVISE', 'RELATE']);
+    }
+  });
+
+  it('rejects malformed native candidate fields and forged, missing or future candidate evidence', () => {
+    const { history, lesson } = nativeHistory();
+    const edits: ((candidate: any) => void)[] = [
+      c => { delete c.source; }, c => { c.source.alias = 1; }, c => { c.source.extra = true; },
+      c => { c.action = 'UNKNOWN'; }, c => { c.cueId = 1; }, c => { c.cueRevision = 1.5; },
+      c => { c.partId = false; }, c => { c.mode = 'unknown'; }, c => { c.relationKind = 'unknown'; },
+      c => { c.unexpected = true; }, c => { c.source.ranges[0].quote = 'forged'; },
+      c => { c.source.ranges[0].evidenceId = 'missing'; },
+      c => { c.source.ranges = [binding(lesson, 'f3')]; },
+    ];
+    for (const edit of edits) {
+      const value = JSON.parse(JSON.stringify(wrap(history)));
+      edit(value.history.events.find((e: any) => e.inspection).inspection.selectedCandidate);
+      expect(() => openTrace(JSON.stringify(value))).toThrow();
+    }
+  });
+
   it('keeps A identity, every historical revision, B, recall and change basis through file round trip', () => {
     const { history, a, b } = foundationReplayFixture();
     const archive: TraceArchive = { ...wrap(history), workspace: { notes: { [a]: { text: 'Check this 🧪 条件', mismatch: true } },

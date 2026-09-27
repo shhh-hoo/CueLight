@@ -3,25 +3,22 @@ import { relevantRoles, roleCovers } from './authority.ts';
 import { currentRevision } from './reducer.ts';
 import { semanticWorkingSet, sourceText, type WorkingSetOptions } from './projection.ts';
 import { parseJevChoice, type JevChoiceDiagnostics } from '../decision/jev-choice.ts';
-import type { AcceptedEvent, CueContentPart, EvidenceBinding, LessonState, ReadSet, SemanticOperation, SemanticProposal } from './types.ts';
+import type { AcceptedEvent, CueContentPart, EvidenceBinding, LessonState, ReadSet, SemanticCandidate, SemanticOperation, SemanticProposal } from './types.ts';
 
 export const SEMANTIC_CONTRACT = 'alive-jev-v1' as const;
 export const MAX_OPTIONS = 128;
 export const MAX_REQUEST_CODE_UNITS = 48_000;
 export const MAX_PART_TARGETS = 4;
 export const RELATIONS = ['ELABORATES', 'EXAMPLE_OF', 'CONTRASTS_WITH', 'RECAPS', 'REFERENCES'] as const;
-export type SemanticAction = 'WAIT' | 'NO_CHANGE' | 'CREATE' | 'REVISE' | 'RECALL' | 'WITHDRAW' | 'RELATION_INTENT' | 'RELATE' | 'NONE';
-type Source = Readonly<{ alias: string; ranges: readonly EvidenceBinding[] }>;
+export type SemanticAction = SemanticCandidate['action'];
+type Source = SemanticCandidate['source'];
 export type SemanticInput = Readonly<{
   contract: typeof SEMANTIC_CONTRACT; inspectionId: string; sessionId: string; sessionEpoch: number;
   stage: 'primary' | 'relation'; parentInspectionId?: string; relationFromCueId?: string;
   workingSet: ReturnType<typeof semanticWorkingSet>; sources: readonly Source[];
   omittedSourceAlternatives?: readonly (readonly EvidenceBinding[])[];
 }>;
-export type OperationCandidate = Readonly<{
-  key: string; action: SemanticAction; source: Source; cueId?: string; cueRevision?: number;
-  partId?: string; mode?: 'append' | 'replace' | 'criticise'; relationKind?: typeof RELATIONS[number];
-}>;
+export type OperationCandidate = SemanticCandidate;
 export type SemanticJudgment = Readonly<{
   operation: JevChoiceDiagnostics; stances: Readonly<Record<string, JevChoiceDiagnostics>>;
   relationEvidence?: JevChoiceDiagnostics; model: string; requestModel?: string; usage?: { input_tokens: number; output_tokens: number };

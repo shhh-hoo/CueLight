@@ -1,5 +1,6 @@
 import { latestSourceId, replayReply, semanticReply } from './semantic-mock';
 import { test, expect, type Page } from '@playwright/test';
+import type { LessonHistory } from '../src/alive/types';
 
 test.beforeEach(async ({ page }) => {
   page.on('dialog', dialog => dialog.accept());
@@ -135,4 +136,37 @@ test('delete invalidates a delayed semantic result before it can resurrect local
   await page.getByRole('button', { name: '删除当前本地记录' }).click(); release(); await page.clock.runFor(20_000);
   await expect(page.getByTestId('cue-choice')).toHaveCount(0);
   expect(await page.evaluate(keys => keys.map(k => sessionStorage.getItem(k)), keys)).toEqual(keys.map(() => null));
+});
+
+test('native Jev accepted history exports to TRACE and reopens without provider calls', async ({ page, context }) => {
+  await page.clock.install();
+  await page.route('**/api/jev/inspect', route => route.fulfill({ json: replayReply(route.request().postDataJSON()) }));
+  await ready(page);
+  await page.getByRole('button', { name: 'Start replay' }).click();
+  await page.clock.runFor(16_850);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 TRACE 文件', exact: true }).click();
+  const stream = (await (await download).createReadStream())!;
+  let json = ''; for await (const chunk of stream) json += chunk;
+  const history: LessonHistory = JSON.parse(json).history;
+  const native = history.events.filter(e => e.inspection?.contractVersion === 'alive-jev-v1');
+  expect(native.some(e => e.inspection?.selectedCandidate.action === 'CREATE')).toBe(true);
+  expect(native.some(e => e.inspection?.selectedCandidate.action === 'REVISE')).toBe(true);
+  expect(native.every(e => e.inspection!.selectedCandidate.source.ranges.length > 0)).toBe(true);
+  const persisted = await page.evaluate(id => Object.keys(sessionStorage)
+    .filter(key => key.startsWith('cuelight:alive:')).map(key => JSON.parse(sessionStorage.getItem(key)!))
+    .find(value => value.sessionId === id), history.sessionId);
+  expect(history).toEqual(persisted);
+
+  const fresh = await context.newPage(); const calls: string[] = [];
+  await fresh.route('**/api/**', route => { calls.push(route.request().url()); return route.abort(); });
+  await fresh.goto('/');
+  await fresh.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'native.trace.json', mimeType: 'application/json', buffer: Buffer.from(json) });
+  const view = fresh.getByRole('region', { name: '教师 TRACE' }).filter({ visible: true });
+  await expect(view.getByTestId('cue-choice')).toHaveCount(2);
+  await expect(view.getByTestId('cue-detail')).toContainText(osmosis);
+  await expect(view.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
+  await view.getByLabel('Cue 版本').selectOption('1');
+  await expect(view.getByTestId('cue-detail')).not.toContainText('The moving particles');
+  expect(calls).toEqual([]);
 });
