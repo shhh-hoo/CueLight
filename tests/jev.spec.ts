@@ -145,6 +145,7 @@ test('native Jev accepted history exports to TRACE and reopens without provider 
   await ready(page);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(16_850);
+  await records(page);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出 TRACE 文件', exact: true }).click();
   const stream = (await (await download).createReadStream())!;
@@ -161,10 +162,11 @@ test('native Jev accepted history exports to TRACE and reopens without provider 
 
   const fresh = await context.newPage(); const calls: string[] = [];
   await fresh.route('**/api/**', route => { calls.push(route.request().url()); return route.abort(); });
-  await fresh.goto('/');
+  await fresh.goto('/dev');
   await fresh.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'native.trace.json', mimeType: 'application/json', buffer: Buffer.from(json) });
   const view = fresh.getByRole('region', { name: '教师 TRACE' }).filter({ visible: true });
   await expect(view.getByTestId('cue-choice')).toHaveCount(2);
+  await inspect(view);
   await expect(view.getByTestId('cue-detail')).toContainText(osmosis);
   await expect(view.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
   await view.getByLabel('Cue 版本').selectOption('1');
