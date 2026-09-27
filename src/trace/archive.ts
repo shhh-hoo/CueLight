@@ -35,7 +35,7 @@ export function openTrace(json: string): OpenedTrace {
     for (const op of event.operations) if (op.type === 'RECORD_EVIDENCE') for (const f of op.fragments) {
       if (!recorded.has(f.id)) recorded.set(f.id, event.eventSequence);
     }
-    for (const ref of event.inspection?.evidenceScope ?? []) {
+    for (const ref of [...event.inspection?.evidenceScope ?? [], ...event.inspection?.selectedCandidate.source.ranges ?? []]) {
       validateBinding(lesson, ref); check(recorded.has(ref.evidenceId), 'Inspection references future evidence.');
     }
   }

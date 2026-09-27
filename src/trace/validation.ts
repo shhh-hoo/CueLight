@@ -23,6 +23,11 @@ const dict = (item: Check): Check => v => {
 const strings = array(text);
 const binding = fields({ evidenceId: text, start: integer, end: integer, quote: text });
 const bindings = array(binding);
+const selectedCandidate = fields({
+  key: text, action: choice('WAIT', 'NO_CHANGE', 'CREATE', 'REVISE', 'RECALL', 'WITHDRAW', 'RELATION_INTENT', 'RELATE', 'NONE'),
+  source: fields({ alias: text, ranges: bindings }),
+}, { cueId: text, cueRevision: integer, partId: text, mode: choice('append', 'replace', 'criticise'),
+  relationKind: choice('ELABORATES', 'EXAMPLE_OF', 'CONTRASTS_WITH', 'RECAPS', 'REFERENCES') });
 const asset = fields({ packId: text, releaseId: text, assetId: text, assetVersion: text, digest: text });
 const reads = fields({}, { cues: dict(integer), relations: dict(integer), roles: dict(integer), deferred: dict(integer),
   processing: dict(integer), lifecycle: dict(text), attention: integer });
@@ -65,7 +70,7 @@ const event = fields({ proposalId: text, origin: choice('host', 'teacher', 'jev'
   policyVersion: choice('alive-foundation-v1'), eventId: text, eventSequence: integer, acceptedAt: number,
   createdCueIds: dict(text), resultingVersions: reads }, { foreground: text,
   inspection: fields({ contractVersion: choice('alive-jev-v1'), inspectionId: text, stage: choice('primary', 'relation'),
-    evidenceScope: bindings, selectedCandidate: fields({ action: text, key: text }), judgment: () => {} }, { parentInspectionId: text }) });
+    evidenceScope: bindings, selectedCandidate, judgment: () => {} }, { parentInspectionId: text }) });
 
 export const MAX_ARCHIVE_BYTES = 8 * 1024 * 1024;
 export const MAX_ARCHIVE_EVENTS = 2_000;
