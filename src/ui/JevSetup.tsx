@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export function JevSetup({ onReady }: { onReady: (ready: boolean) => void }) {
+export function JevSetup({ onReady, compact = false }: { onReady: (ready: boolean) => void; compact?: boolean }) {
   const [attempt, setAttempt] = useState(0);
   const [message, setMessage] = useState('Checking Jev configuration…');
   const [ready, setReady] = useState(false);
@@ -32,5 +32,5 @@ export function JevSetup({ onReady }: { onReady: (ready: boolean) => void }) {
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [attempt, onReady]);
 
-  return <div className="provider-setup" role="status"><p>{message}</p>{!ready && <button onClick={() => setAttempt(value => value + 1)}>Check again</button>}</div>;
+  return <div className="provider-setup" role="status"><p>{compact ? ready ? '讲授梳理已就绪' : '讲授梳理未连接' : message}</p>{!ready && <button onClick={() => setAttempt(value => value + 1)}>{compact ? '重新连接' : 'Check again'}</button>}</div>;
 }

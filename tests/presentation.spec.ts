@@ -1,3 +1,4 @@
+import { inspect } from './workbench-helpers';
 import { replayReply } from './semantic-mock';
 import { test, expect, type Page } from '@playwright/test';
 import type { PresentationResult } from '../src/refinement/presentation';
@@ -14,7 +15,7 @@ async function ready(page: Page) {
   await page.route('**/api/openai/status', route => route.fulfill({ json: { configured: true, model: 'presentation-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false } }));
   await page.route('**/api/jev/inspect', route => route.fulfill({ json: replayReply(route.request().postDataJSON()) }));
   page.on('dialog', dialog => dialog.accept());
-  await page.goto('/'); await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
+  await page.goto('/dev'); await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
   await expect(page.getByText('Jev ready', { exact: false })).toBeVisible();
 }
 async function fits(page: Page) {
@@ -50,7 +51,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
       if (i) await page.getByRole('button', { name: 'Reset', exact: true }).click();
       await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250);
       await page.getByRole('button', { name: 'Pause replay' }).click();
-      const detail = page.getByTestId('cue-detail'); await expect(detail).toContainText(source);
+      await inspect(page); const detail = page.getByTestId('cue-detail'); await expect(detail).toContainText(source);
       await page.getByRole('checkbox', { name: 'Text refinement', exact: false }).check(); await expect.poll(() => calls).toBe(i + 1);
       if (result.kind === 'source') await expect(detail.locator('.cue-presentation')).toHaveCount(0);
       else {
@@ -76,9 +77,9 @@ test('source is first; derived replacement is atomic and keyed to the selected h
   }); await ready(page);
   await page.getByRole('checkbox', { name: 'Text refinement', exact: false }).check();
   await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250);
-  const detail = page.getByTestId('cue-detail'); await expect(detail).toContainText(source); await expect.poll(() => pending.length).toBe(1);
+  await inspect(page); const detail = page.getByTestId('cue-detail'); await expect(detail).toContainText(source); await expect.poll(() => pending.length).toBe(1);
   await detail.evaluate(e => e.setAttribute('data-marker', 'stable')); pending[0]!(); await expect(detail).toContainText('Water moves across');
-  await page.clock.runFor(3_600); await expect(detail).toContainText(clarification);
+  await page.clock.runFor(3_600); await page.getByLabel('Cue 版本').selectOption('2'); await expect(detail).toContainText(clarification);
   await expect(detail.locator('.cue-presentation')).toHaveCount(0); await expect.poll(() => pending.length).toBe(2);
   await detail.evaluate(element => {
     const snapshots: string[] = []; Object.assign(window, { presentationPaints: snapshots });
@@ -98,7 +99,7 @@ test('late cancelled presentation cannot overwrite any historical Cue', async ({
     await new Promise<void>(resolve => pending.push(resolve)); await route.fulfill({ json: { result: textResult } }).catch(() => {});
   }); await ready(page); await page.getByRole('checkbox', { name: 'Text refinement', exact: false }).check();
   await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250); await expect.poll(() => pending.length).toBe(1);
-  await page.clock.runFor(3_600); await expect(page.getByTestId('cue-detail')).toContainText(clarification); await expect.poll(() => pending.length).toBe(2);
+  await page.clock.runFor(3_600); await inspect(page); await expect(page.getByTestId('cue-detail')).toContainText(clarification); await expect.poll(() => pending.length).toBe(2);
   await page.clock.runFor(6_200); await expect(page.getByTestId('cue-choice')).toHaveCount(2);
   pending[0]!(); pending[1]!(); await page.clock.runFor(50);
   await expect(page.getByTestId('cue-detail')).not.toContainText('Water moves across');

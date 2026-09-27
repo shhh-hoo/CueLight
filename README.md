@@ -1,6 +1,6 @@
 # CueLight
 
-CueLight is a teacher workspace for reviewing what was actually taught, how ideas developed, and where each interpretation came from. **TRACE V0** is the current entry: lecture or replay → inspect Cue history and original evidence → add independent notes → export and reopen a portable record. It describes accepted interpretations; it does not score or diagnose teaching.
+CueLight is a teacher workspace for reviewing what was actually taught, how ideas developed, and where each interpretation came from. **The teacher workbench** opens on the real current/previous CueSurface. Teachers can speak, browse Lesson Flow, check a source, and edit independent notes in any order. TRACE V0 supplies the full history and portable archives. It describes accepted interpretations; it does not score or diagnose teaching.
 
 ENRICH (Cue-level additions and references) and REWORK (optional whole-lesson organization suggestions) remain future capabilities. They are independent layers, not a required rehearsal loop. Student LIVE, projection, Pin/Dismiss and dual-surface synchronization are outside the current delivery.
 
@@ -15,7 +15,7 @@ Canonical authority, in order:
 
 Alive Cue **Slices I–II** establish immutable evidence, stable Cue identities and revisions, lifecycle/relations/adoption/deferred records, a single acceptance writer, deterministic replay, and a derived Semantic Working Set. See [foundation implementation notes](docs/alive-cue-foundation.md) for exact boundaries, storage, migration, and test mapping.
 
-**Slice III** adds `alive-jev-v1`: bounded source-grounded WAIT / NO_CHANGE / CREATE / REVISE / RECALL / WITHDRAW / RELATION_INTENT proposals over persistent Cues, plus optional relation follow-up. See [Slice III notes and validation](docs/alive-cue-jev-proposals.md). TRACE now reads the full accepted lesson, independently of compatibility current/previous slots. Speechmatics segmentation and optional source-bound text/list/chain Presentation V1 remain unchanged. Domain Pack retrieval, general background artifacts and semantic repair remain later work. No semantic or classroom quality is claimed by deterministic tests.
+**Slice III** adds `alive-jev-v1`: bounded source-grounded WAIT / NO_CHANGE / CREATE / REVISE / RECALL / WITHDRAW / RELATION_INTENT proposals over persistent Cues, plus optional relation follow-up. See [Slice III notes and validation](docs/alive-cue-jev-proposals.md). TRACE now reads the full accepted lesson, independently of compatibility current/previous slots. Speechmatics segmentation and optional source-bound text/list/chain Presentation V1 remain unchanged. Domain Pack retrieval, general background artifacts and semantic repair remain later work. No semantic or classroom quality is claimed by deterministic tests. See [teacher workbench layout](docs/teacher-workbench-layout.md) for the current view/state contract and verification.
 
 **TRACE V0** adds a process list, all-Cue index, versioned detail, exact original-source navigation, teacher notes / mismatch marks, explicit processing states and portable file export/import in development and production. See [TRACE V0 implementation and verification](docs/teacher-trace-v0.md).
 
@@ -34,23 +34,25 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Choose Science, History, Literature, Programming, or Mathematics, then select **Start replay**. Each 16.8-second sample includes filler, a new point, a clarification, and a different point. Pause/continue preserves replay timing. Click a Cue to view its versions, then a source link to highlight the exact original range. Add **教师备注** or mark **梳理不符**, choose **导出 TRACE 文件**, and use **打开 TRACE 文件** in a new page to recover the same TRACE read-only. Reset and switching start fresh sessions after the leave guard; previous tab journals are not automatically reopened.
+Open the local URL printed by Vite for the teacher Display. **Lesson Flow** replaces the main area; **Current Cue / Just before** opens a pinned Cue/version in the contextual sheet, whose Reference, Note and Evidence tabs show one task at a time. Capture and view changes are independent. Use **记录与导出** for files and deletion.
 
-**Show diagnostics** opens the development-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Microphone and Jev text-replay sessions additionally retain full semantic inspection traces (including coverage, exact request, choice, proposal, acceptance and compatibility foreground) an in-memory diagnostic journal that you can explicitly download before resetting or switching sources. Scripted replay retains its bounded snapshot.
+For offline development, open **`/dev`**, choose Science, History, Literature, Programming, or Mathematics, then select **Start replay**. Each 16.8-second sample includes filler, a new point, a clarification, and a different point. Pause/continue preserves replay timing. Open Lesson Flow and click a Cue to view its versions, then a source link to highlight the exact original range. Open **Note** for **教师备注** or **梳理不符**, then **记录与导出 → 导出 TRACE 文件**, and use **打开 TRACE 文件** in a new page to recover the same TRACE read-only. Reset and switching start fresh sessions after the leave guard; previous tab journals are not automatically reopened.
+
+**Show diagnostics** on `/dev` opens the development-build-only panel. It shows incoming text, rolling evidence, candidate spans, versions, in-flight status, the last decision and whether it was applied/discarded, and Cue provenance. Microphone and Jev text-replay sessions additionally retain full semantic inspection traces (including coverage, exact request, choice, proposal, acceptance and compatibility foreground) an in-memory diagnostic journal that you can explicitly download before resetting or switching sources. Scripted replay retains its bounded snapshot.
 
 ```sh
 npm run build
 npm run preview
 ```
 
-The production browser bundle has the same TRACE, export/import, replay and Cue Engine, without the debug panel, upstream Jev adapter, or credentials. Fonts use local system fallbacks. Scripted mode makes no external requests. The tab-scoped lesson journal remains recoverable; the UI starts a new capture on reload.
+The production browser bundle has the same teacher Display, Flow and archive support. Offline replay/provider selectors are confined to the explicit `/dev` test route; the debug panel, upstream Jev adapter and credentials are absent from production. Fonts use local system fallbacks. Scripted mode makes no external requests. The tab-scoped lesson journal remains recoverable; the UI starts a new capture on reload.
 
 ## Enable Jev locally
 
 1. Copy `.env.example` to `.env.local` and set `TYPESAFE_API_KEY` to your TypeSafe API key. This file is ignored by Git. Never use a `VITE_` prefix for credentials.
 2. Optionally set `JEV_MODEL`; the default is `jev-latest`.
 3. Restart `npm run dev` (or `npm run preview` after building).
-4. Choose **Jev** in **Decision provider**. The page checks local configuration without calling the model. **Start replay** is disabled until a server key is present; configuration readiness does not prove the key is valid.
+4. On `/dev`, choose **Jev** in **Decision provider**. The page checks local configuration without calling the model. **Start replay** is disabled until a server key is present; configuration readiness does not prove the key is valid.
 5. Select **Start replay** to send finalized teaching evidence to Jev using your TypeSafe account. No model request happens merely from opening the app or selecting Jev. Switch back to **离线编写示例** for offline development.
 
 Changing provider starts a fresh session. Reset and provider/lesson changes cancel pending browser requests, propagate disconnect cancellation upstream, and retain the Engine's session/version guards. Provider failures preserve existing Cue history; a service error appears outside original-source content and the development panel records the distinct failure category and latency. There is no automatic fallback to scripted decisions.
@@ -96,7 +98,7 @@ Microphone mode now requires **Python 3.11+** as well as **Node 24+**. The brows
 
    For the local production build, use `npm run build` then `npm run preview`, with the gateway still running. Vite proxies `/api/voice/status` and `/api/voice/session` (WebSocket) to port 8765; no frontend environment setting is needed. The gateway accepts loopback Host and matching Origin only. It is a local service, not public deployment infrastructure; a static `dist/` host alone cannot run Voice, Jev, or refinement. On Windows, use `.venv\Scripts\python voice_gateway/gateway.py` in place of `npm run voice`.
 
-4. Select **Microphone**, click **Start microphone**, allow access, and wait for **Microphone live · you can speak now**. Configuration checks do not call paid providers or validate keys. Starting uses Speechmatics and TypeSafe. The browser needs AudioContext, AudioWorklet, microphone permission and WebSocket support; audio captured while connecting is discarded.
+4. Open the normal `/` entry, check **采集设置** if needed, click **Start microphone**, allow access, and wait for **Microphone live · you can speak now**. Configuration checks do not call paid providers or validate keys. Starting uses Speechmatics and TypeSafe. The browser needs AudioContext, AudioWorklet, microphone permission and WebSocket support; audio captured while connecting is discarded.
 5. **Stop microphone** stops capture, finalizes outstanding audio/segments, drains Jev, then disconnects the SDK. Wait for **Session stopped**; history and notes remain readable/exportable. Reset, source change and page exit cancel related work, with a leave warning for unexported content. Reconnect / **Start new session** creates a new ID, source clock, evidence and Cue state.
 
 ### Runtime and SDK configuration
@@ -170,7 +172,7 @@ ReplayEvidenceSource / SpeechmaticsEvidenceSource.subscribe(finalFragment)
   → single acceptance writer validates/persists AcceptedEvent
   → full LessonHistory / LessonState
   → Teacher TRACE projection + independent notes / file export
-  (compatibility current/previous slots still serve existing refinement scheduling)
+  (current/previous slots feed the teacher Display and existing refinement scheduling; browsing is independent)
 ```
 
 | Module | Responsibility |
@@ -204,7 +206,7 @@ The new source layer exposes exact legal punctuation subranges, the whole pendin
 
 One primary request is active at a time. Accepted processing must advance before another step over the same Final; WAIT and failed snapshots remain suspended across bursts until their own processing or matching authority changes. Fresh evidence may use a suspended tail as continuation context without retrying it alone. New input coalesces, and required stale dependencies cause rejection and at most one fresh recapture per source lineage. The semantic path does not use display equality or the old five-second evidence-window cutoff as semantic freshness. Relation work cannot block primary publication or change foreground. One active plus one latest-useful pending relation is retained; superseded or invalidated work is explicitly diagnosed.
 
-CREATE and RECALL still select compatibility foreground for existing refinement scheduling. These slots no longer determine the teacher view: TRACE selection is local UI state, and all Cues survive slot expiry. Browsing an old Cue does not submit RECALL or call a model. Pause stops source emissions but not pending work. Reset/disposal invalidates late results by session generation and epoch.
+CREATE and RECALL still select compatibility foreground for existing refinement scheduling. These slots drive the main teacher Display. TRACE browsing is independent local UI state, and all Cues survive slot expiry in Lesson Flow. Browsing an old Cue does not submit RECALL or call a model. Pause stops source emissions but not pending work. Reset/disposal invalidates late results by session generation and epoch.
 
 The scripted demo and historical replay CLI retain the explicitly labelled legacy adapter. They use the same LessonStore writer, but their NEW/UPDATE/QUIET vocabulary is not the live Jev contract. Historical v3 results must not be treated as Alive Cue evaluations.
 
@@ -226,7 +228,7 @@ The [implementation notes](docs/alive-cue-jev-proposals.md) describe bounds, fai
 Jev selects the teaching content and publishes its exact source Cue immediately. OpenAI may asynchronously improve how that same revision is written and structured. Presentation is display-only: generated content never enters evidence, candidates, Jev input, or source Cue state.
 
 1. Set `OPENAI_API_KEY` in this checkout's ignored `.env.local`, alongside `TYPESAFE_API_KEY` (and `SPEECHMATICS_API_KEY` for microphone input). Never prefix credentials with `VITE_`. Restart the local dev/preview server after configuration changes.
-2. Select microphone mode or **Jev** text replay. Enable **Text refinement · preserve meaning, clarify structure**. Enhancement defaults to off; missing configuration does not block teaching. Status checks do not call a model. Enabling with an existing Cue starts one fresh attempt.
+2. In the normal microphone entry, open **采集设置** and enable **整理呈现**. On `/dev`, use microphone or **Jev** text replay and enable **Text refinement · preserve meaning, clarify structure**. Enhancement defaults to off; missing configuration does not block teaching. Status checks do not call a model. Enabling with an existing Cue starts one fresh attempt.
 3. Original source remains visible. The first successful presentation observed for each Cue revision is retained separately, labelled **整理表达** with its source version, and included in the TRACE file. Turning refinement off cancels future generation, while the already saved presentation remains readable. The existing scheduler is still current-only; browsing does not reschedule it. This is not ENRICH or an artifact-editing system.
 4. In development, **Show diagnostics → Export session diagnostics** records source and display state separately, requested targets, result kind, outcomes, and monotonic request/result times. The diagnostic journal uses schema v4 with style `presentation-v1`; timings do not measure browser paint. Keep real session exports and model reports private.
 
