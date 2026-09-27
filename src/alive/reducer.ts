@@ -1,6 +1,6 @@
-import { matchesRoleSubject, relevantRoles, roleCovers, roleSubject } from './authority';
-import { covers, freeze, overlaps, processRange, sameFragment, requireDomain as check, validId, validateBinding, validateFragment } from './evidence';
-import type { AcceptedEvent, CueContentPart, CueRecord, CueRevision, EvidenceBinding, LessonState, ReadSet, SemanticProposal } from './types';
+import { matchesRoleSubject, relevantRoles, roleCovers, roleSubject } from './authority.ts';
+import { covers, freeze, overlaps, processRange, sameFragment, requireDomain as check, validId, validateBinding, validateFragment } from './evidence.ts';
+import type { AcceptedEvent, CueContentPart, CueRecord, CueRevision, EvidenceBinding, LessonState, ReadSet, SemanticProposal } from './types.ts';
 
 export function emptyLesson(sessionId: string, sessionEpoch = 0): LessonState {
   validId(sessionId);
@@ -128,7 +128,7 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
     // Foundation does not enable background semantic writes. The legacy Jev
     // adapter cannot assign roles, adopt students, or infer relations/lifecycle.
     check(event.origin !== 'llm', 'Background semantic operations are not enabled.');
-    if (event.origin === 'jev') check(['CREATE', 'EXTEND', 'REVISE', 'MENTION', 'RECALL', 'DEFER', 'RESOLVE_DEFERRED'].includes(op.type), 'Operation not enabled for Jev.');
+    if (event.origin === 'jev') check(['CREATE', 'EXTEND', 'REVISE', 'MENTION', 'RECALL', 'DEFER', 'RESOLVE_DEFERRED', ...(event.inspection?.contractVersion === 'alive-jev-v1' ? ['WITHDRAW', 'RELATE'] : [])].includes(op.type), 'Operation not enabled for Jev.');
     switch (op.type) {
       case 'RECORD_EVIDENCE': {
         check(event.origin === 'host', 'Only the capture host records evidence.');
@@ -236,6 +236,8 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
       }
       case 'RELATE': {
         const relation = op.relation; validId(relation.relationId);
+        if (event.origin === 'jev') check(relation.family === 'classroom_discourse' &&
+          ['ELABORATES', 'EXAMPLE_OF', 'CONTRASTS_WITH', 'RECAPS', 'REFERENCES'].includes(relation.kind), 'Jev relation kind is not enabled.');
         readCue(relation.fromCueId); readCue(relation.toCueId); ranges(relation.basisRefs);
         checkReadSet(next, relation.dependencyReadSet);
         check(relation.dependencyReadSet.cues?.[relation.fromCueId] === next.cues[relation.fromCueId]!.currentSemanticRevision &&
@@ -245,7 +247,7 @@ export function reduceAccepted(state: LessonState, event: AcceptedEvent): Lesson
         check(['current', 'needs_review', 'withdrawn'].includes(relation.status) && relation.kind.trim(), 'Invalid relation.');
         if (relation.family === 'external_domain') check(relation.assetRefs.length > 0, 'External relation needs an exact Asset.');
         else check(['classroom_discourse', 'classroom_domain'].includes(relation.family), 'Invalid relation family.');
-        if (relation.family === 'classroom_domain') {
+        if (relation.family === 'classroom_domain' || event.origin === 'jev') {
           check(teacherGrounded(relation.basisRefs, requireRoleReads(relation.basisRefs).map(role => role.bindingId)), 'Classroom-domain relation requires teacher authority.');
           for (const role of requireRoleReads(relation.basisRefs)) check(relation.dependencyReadSet.roles?.[role.bindingId] === role.revision, 'Relation requires role provenance dependency.');
         }

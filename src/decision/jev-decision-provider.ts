@@ -1,3 +1,4 @@
+// Legacy structured-v3 / scripted compatibility only. Live Jev uses alive/inspection and /api/jev/inspect.
 import { parseRuntimeConfig } from '../../server/runtime-config.ts';
 // Server-only: do not import this module from App or any browser entrypoint.
 import type { CueDecisionProvider, DecisionInput } from './decision-provider.ts';

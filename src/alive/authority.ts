@@ -1,5 +1,5 @@
-import { covers, overlaps } from './evidence';
-import type { EvidenceBinding, EvidenceRecord, LessonState, RoleBinding } from './types';
+import { covers, overlaps } from './evidence.ts';
+import type { EvidenceBinding, EvidenceRecord, LessonState, RoleBinding } from './types.ts';
 
 export const roleSubject = (role: RoleBinding) => role.subject ?? { kind: 'speaker' as const, id: role.speakerId };
 export function matchesRoleSubject(role: RoleBinding, evidence: EvidenceRecord): boolean {

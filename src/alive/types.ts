@@ -1,4 +1,4 @@
-import type { EvidenceFragment } from '../evidence/evidence-buffer';
+import type { EvidenceFragment } from '../evidence/evidence-buffer.ts';
 
 // One shared domain contract. Transport adapters retain provider fields verbatim.
 export type EvidenceRecord = EvidenceFragment & Readonly<{
@@ -83,6 +83,9 @@ export type SemanticProposal = Readonly<{
   sessionId: string; sessionEpoch: number; readSet: ReadSet;
   operations: readonly SemanticOperation[]; processing: readonly ProcessingEffect[];
   // CREATE uses its identityKey here; existing objects use their stable cueId.
+  inspection?: Readonly<{ contractVersion: 'alive-jev-v1'; inspectionId: string; stage: 'primary' | 'relation';
+    parentInspectionId?: string; evidenceScope: readonly EvidenceBinding[];
+    selectedCandidate: { action: string; key: string }; judgment: unknown }>;
   foreground?: string; policyVersion: 'alive-foundation-v1';
 }>;
 export type AcceptedEvent = SemanticProposal & Readonly<{

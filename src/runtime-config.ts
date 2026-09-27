@@ -1,5 +1,5 @@
 // Public configuration contracts only: defaults and environment parsing stay server-side.
-export type JevConfiguration = Readonly<{ model: string; timeoutMs: number; contextVersion: 'structured-v3' }>;
+export type JevConfiguration = Readonly<{ model: string; timeoutMs: number; contextVersion: 'structured-v3' | 'alive-jev-v1' }>;
 export type RefinementConfiguration = Readonly<{ model: string; timeoutMs: number; maxInputChars: number; defaultEnabled: boolean }>;
 
 // Copy only the allowlisted fields; never journal arbitrary status/HTTP payloads.
@@ -12,6 +12,6 @@ export function refinementConfiguration(value: unknown): RefinementConfiguration
 export function jevConfiguration(value: unknown): JevConfiguration {
   const c = value as Partial<JevConfiguration> | null;
   if (!c || typeof c.model !== 'string' || !c.model.trim() || !Number.isSafeInteger(c.timeoutMs) || c.timeoutMs! <= 0 ||
-      c.contextVersion !== 'structured-v3') throw new Error('Invalid Jev configuration.');
-  return { model: c.model, timeoutMs: c.timeoutMs!, contextVersion: c.contextVersion };
+      !['structured-v3', 'alive-jev-v1'].includes(c.contextVersion!)) throw new Error('Invalid Jev configuration.');
+  return { model: c.model, timeoutMs: c.timeoutMs!, contextVersion: c.contextVersion! };
 }

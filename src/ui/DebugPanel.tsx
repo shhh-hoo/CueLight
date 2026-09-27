@@ -3,6 +3,7 @@ import type { SessionDiagnostics } from '../speechmatics/session-diagnostics';
 import type { RefinementSnapshot } from '../refinement/cue-refinement';
 
 export default function DebugPanel({ snapshot, providerName, diagnostics, refinement }: { snapshot: EngineSnapshot; providerName: 'mock' | 'jev'; diagnostics?: SessionDiagnostics; refinement?: RefinementSnapshot }) {
+  const semantic = snapshot.lastSemantic;
   const last = snapshot.lastDecision;
   const decision = last?.decision;
   const selected = decision && decision.action !== 'QUIET'
@@ -16,17 +17,18 @@ export default function DebugPanel({ snapshot, providerName, diagnostics, refine
       <dl className="debug-summary">
         <div><dt>Evidence version</dt><dd data-testid="evidence-version">{snapshot.evidence.version}</dd></div>
         <div><dt>Request status</dt><dd>{snapshot.status}</dd></div>
-        <div><dt>Request version</dt><dd>{snapshot.request?.evidence.version ?? '—'}</dd></div>
-        <div><dt>Returned action</dt><dd data-testid="returned-action">{last?.decision.action ?? '—'}</dd></div>
-        <div><dt>Outcome</dt><dd>{last?.outcome ?? '—'}</dd></div>
-        <div><dt>Decision latency</dt><dd>{last ? `${last.durationMs} ms` : '—'}</dd></div>
+        <div><dt>Request version</dt><dd>{snapshot.semanticRequest?.inspectionId ?? snapshot.request?.evidence.version ?? '—'}</dd></div>
+        <div><dt>Returned action</dt><dd data-testid="returned-action">{semantic?.proposal?.inspection?.selectedCandidate.action ?? last?.decision.action ?? '—'}</dd></div>
+        <div><dt>Outcome</dt><dd>{semantic?.outcome ?? last?.outcome ?? '—'}</dd></div>
+        <div><dt>Decision latency</dt><dd>{semantic ? `${semantic.durationMs} ms` : last ? `${last.durationMs} ms` : '—'}</dd></div>
       </dl>
-      {(snapshot.inputError || last?.error) && <p role="alert">{snapshot.inputError ?? last?.error}</p>}
+      {(snapshot.inputError || semantic?.error || last?.error) && <p role="alert">{snapshot.inputError ?? semantic?.error ?? last?.error}</p>}
       <h3>Incoming fragment</h3>
       <pre>{snapshot.incoming ? JSON.stringify(snapshot.incoming, null, 2) : 'Waiting for input.'}</pre>
       <h3>Rolling evidence · {snapshot.evidence.fragments.length} / 32 fragments</h3>
       <ol>{snapshot.evidence.fragments.map(fragment => <li key={fragment.id}><code>{fragment.id}</code> {fragment.text}</li>)}</ol>
-      <h3>Generated candidates</h3>
+      <h3>Semantic inspection</h3><pre>{semantic ? JSON.stringify(semantic, null, 2) : "No semantic inspection."}</pre>
+      <h3>Scripted compatibility candidates</h3>
       <ol>{snapshot.candidates.map(candidate => <li key={candidate.id}><code>{candidate.id}</code><p>{candidate.text}</p></li>)}</ol>
       <h3>Selected candidate</h3><pre>{selected ? JSON.stringify(selected, null, 2) : 'None'}</pre>
       <h3>Current Cue</h3><pre>{JSON.stringify(snapshot.cues.currentCue, null, 2)}</pre>

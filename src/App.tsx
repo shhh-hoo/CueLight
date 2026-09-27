@@ -2,7 +2,7 @@ import { LessonStore, browserJournal } from './alive/journal';
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import { CueEngine } from './cue/cue-engine';
 import { MockDecisionProvider } from './decision/mock-decision-provider';
-import { HttpDecisionProvider } from './decision/http-decision-provider';
+import { HttpSemanticProvider } from './decision/http-semantic-provider';
 import { replayFixtures, type ReplayFixture } from './replay/replay-fixtures';
 import { ReplayEvidenceSource } from './replay/replay-source';
 import { CueSurface } from './ui/CueSurface';
@@ -23,16 +23,17 @@ function ReplaySession({ fixture, providerName }: { fixture: ReplayFixture; prov
   useEffect(() => {
     const sessionId = crypto.randomUUID();
     const diagnostics = import.meta.env.DEV && providerName === 'jev' ? new SessionDiagnostics(sessionId, 'text-replay') : undefined;
-    const provider = providerName === 'jev' ? new HttpDecisionProvider(undefined, diagnostics?.observeJevConfiguration, diagnostics?.observeJevChoice) : new MockDecisionProvider(fixture.script);
-    const cancel = () => { if (provider instanceof HttpDecisionProvider) provider.cancel(); };
-    const engine = new CueEngine({ decide: input => diagnostics
-      ? diagnostics.decide(input, () => provider.decide(input)) : provider.decide(input) }, undefined, new LessonStore(browserJournal(sessionId)));
+    const provider = providerName === 'jev' ? new HttpSemanticProvider(undefined, diagnostics?.observeJevConfiguration) : new MockDecisionProvider(fixture.script);
+    const cancel = () => { if (provider instanceof HttpSemanticProvider) provider.cancel(); };
+    const engine = new CueEngine(provider, undefined, new LessonStore(browserJournal(sessionId)));
+    if (providerName === 'jev') engine.configureTeacherCapture(sessionId);
     const detach = diagnostics?.attach(engine);
     const refinement = providerName === 'jev' ? new CueRefinement(sessionId, engine, diagnostics?.observeRefinement) : undefined;
     const replay = new ReplayEvidenceSource(fixture.entries);
     engine.connect(replay);
     const detachReplay = replay.subscribeStatus(() => {
       if (refinement && replay.getStatus() === 'finished') {
+        engine.stopOptionalInspections();
         void engine.drain().then(() => refinement.finish(), () => refinement.finish());
       }
     });
@@ -66,7 +67,7 @@ function ReplayView({ runtime: { engine, replay, refinement, diagnostics }, fixt
       </div>
       <CueSurface cues={snapshot.cues} display={refined?.cues} />
       {providerName === 'jev' && <JevSetup onReady={setJevReady} />}
-      {(snapshot.inputError || snapshot.lastDecision?.error) && <p className="provider-error" role="alert">{snapshot.inputError ?? snapshot.lastDecision?.error}</p>}
+      {(snapshot.inputError || (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)) && <p className="provider-error" role="alert">{snapshot.inputError ?? (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)}</p>}
       <section className="replay-controls" aria-label="Replay controls">
         <div className="buttons">
           <button className="primary-button" onClick={() => status === 'playing' ? replay.pause() : replay.start()} disabled={status === 'finished' || (providerName === 'jev' && !jevReady)}>

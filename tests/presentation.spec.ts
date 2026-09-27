@@ -1,3 +1,4 @@
+import { replayReply } from './semantic-mock';
 import { test, expect, type Page } from '@playwright/test';
 import type { PresentationResult } from '../src/refinement/presentation';
 
@@ -15,13 +16,9 @@ async function ready(page: Page) {
   await page.route('**/api/openai/status', route => route.fulfill({ json: {
     configured: true, model: 'presentation-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false,
   } }));
-  await page.route('**/api/jev/decide', route => {
+  await page.route('**/api/jev/inspect', route => {
     const input = route.request().postDataJSON();
-    const latest = input.evidence.fragments.at(-1).id;
-    const ids = latest === 'science-3' ? ['science-2', 'science-3'] : [latest];
-    const candidate = input.candidates.find((value: { sourceFragmentIds: string[] }) => JSON.stringify(value.sourceFragmentIds) === JSON.stringify(ids));
-    const action = latest === 'science-2' || latest === 'science-5' ? 'NEW_CUE' : latest === 'science-3' ? 'UPDATE_CURRENT' : 'QUIET';
-    return route.fulfill({ json: { decision: action === 'QUIET' ? { action } : { action, candidateId: candidate.id } } });
+    return route.fulfill({ json: replayReply(input) });
   });
   await page.goto('/');
   await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');

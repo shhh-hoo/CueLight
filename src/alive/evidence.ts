@@ -1,5 +1,5 @@
-import { MAX_FRAGMENT_CHARS, type EvidenceFragment } from '../evidence/evidence-buffer';
-import type { EvidenceBinding, LessonState, ProcessingRange } from './types';
+import { MAX_FRAGMENT_CHARS, type EvidenceFragment } from '../evidence/evidence-buffer.ts';
+import type { EvidenceBinding, LessonState, ProcessingRange } from './types.ts';
 
 export function requireDomain(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

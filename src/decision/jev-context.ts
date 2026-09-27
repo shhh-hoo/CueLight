@@ -1,3 +1,4 @@
+// Legacy structured-v3 / scripted compatibility only. Live Jev uses alive/inspection and /api/jev/inspect.
 import { parseRuntimeConfig } from '../../server/runtime-config.ts';
 import type { DecisionInput } from './decision-provider.ts';
 import { buildJevOptions } from './jev-choice.ts';

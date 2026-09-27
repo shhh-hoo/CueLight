@@ -1,3 +1,4 @@
+// Legacy structured-v3 / scripted compatibility only. Live Jev uses alive/inspection and /api/jev/inspect.
 import { validateDecision, type DecisionInput } from '../decision/decision-provider';
 import type { CueDecision } from '../decision/types';
 import { binding, pendingBindings } from './evidence';
