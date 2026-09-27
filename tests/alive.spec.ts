@@ -114,7 +114,17 @@ test('opening a file preserves a running capture, and returning resumes the same
   await inspect(page); const id = await page.getByTestId('cue-detail').getAttribute('data-cue-id'); await noteText(page, 'Live note');
   await page.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'history.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(foundationReplayFixture().history)) });
   await expect(page.getByText('只读文件 · 不调用模型或麦克风。', { exact: false })).toBeVisible();
+  // Hiding the live workspace must release its dialog, including across a resize.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  await inspect(activeTrace(page)); await expect(page.locator('dialog:modal')).toHaveCount(1);
+  await page.keyboard.press('Escape');
   await page.clock.runFor(14_600); await page.getByRole('button', { name: '返回当前会话' }).click();
+  await expect(page.locator('dialog:modal')).toHaveCount(1);
+  await page.getByLabel('教师备注').focus();
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await expect(page.locator('dialog:modal')).toHaveCount(0);
+  await expect(page.getByLabel('教师备注')).toBeFocused();
   await expect(page.getByTestId('note-detail')).toHaveAttribute('data-cue-id', id!);
   await expect(page.getByLabel('教师备注')).toHaveValue('Live note'); await expect(page.getByTestId('cue-choice')).toHaveCount(2);
 });
@@ -126,4 +136,29 @@ test('failed local deletion reports failure and keeps an exportable view with al
   await expect(page.getByRole('alert')).toContainText('本地删除失败');
   await page.clock.runFor(30_000); await expect(page.getByTestId('cue-choice')).toHaveCount(1);
   const json = await downloaded(page, '导出 TRACE 文件'); expect(JSON.parse(json).history.events.length).toBeGreaterThan(0);
+});
+
+
+test('global deferred evidence has no inherited Cue target after closing a pinned sheet', async ({ page }) => {
+  const h = fixtureHost('global-evidence'); h.record('Cue A source.', 'A deferred source with no Cue.');
+  const a = binding(h.store.getSnapshot(), 'f1'); const deferred = binding(h.store.getSnapshot(), 'f2');
+  h.accept([{ type: 'CREATE', identityKey: 'A', parts: [h.part('a', 'f1')], basis: [a] }]);
+  h.accept([{ type: 'DEFER', deferredId: 'd1', ranges: [deferred], reason: 'Missing context', relatedCueIds: [] }], { readSet: { processing: { f2: 0 } } });
+  await page.goto('/dev');
+  await page.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'deferred.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(h.store.export())) });
+  const view = activeTrace(page); await inspect(view);
+  await expect(view.locator('.sheet-heading')).toContainText('Cue 1');
+  await view.getByRole('button', { name: '关闭工作栏' }).click();
+  await view.locator('.record-scope > summary').click();
+  const sourceLink = view.locator('.record-scope .source-link');
+  await sourceLink.click();
+  await expect(view.locator('.sheet-heading')).toHaveText('讲授原文 · 只读×');
+  await expect(page.locator('#file-source mark')).toHaveText(deferred.quote);
+  for (const name of ['Cue', 'Note', 'Reference']) {
+    await expect(view.getByRole('navigation', { name: 'Cue 工作', exact: true }).getByRole('button', { name, exact: true })).toBeDisabled();
+  }
+  await expect(view.locator('.workbench-tools').getByRole('button', { name: 'Note', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape'); await expect(sourceLink).toBeFocused();
+  await expect(view.getByTestId('cue-choice').first()).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
 });

@@ -2,6 +2,8 @@ import { foundationReplayFixture } from '../src/alive/fixtures';
 import { inspect, notes, records, cueTab, activeTrace } from './workbench-helpers';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { configuration, setup, send, segments } from './microphone-helpers';
+import { semanticReply } from './semantic-mock';
 
 test('production demo runs without diagnostics, credentials, or external model requests', async ({ page }) => {
   const errors: string[] = [];
@@ -92,4 +94,64 @@ test('production provides portable TRACE export/import and source navigation wit
   await expect(archive.getByLabel('梳理不符', { exact: true })).toBeDisabled();
   expect(await page.evaluate(() => Object.keys(sessionStorage).map(key => [key, sessionStorage.getItem(key)]))).toEqual(before);
   expect(paid).toEqual([]);
+});
+
+
+test('production / at 390×844: microphone, modal keyboard isolation, Note, Flow and Stop', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/jev/inspect', route => route.fulfill({ json: semanticReply(route.request().postDataJSON()) }));
+  const sessions = await setup(page, undefined, configuration, '/');
+  await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show diagnostics' })).toHaveCount(0);
+  const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await noOverflow();
+  await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect(page.getByText('Microphone live · you can speak now')).toBeVisible();
+  await expect.poll(() => sessions[0]?.audio ?? 0).toBeGreaterThan(0);
+  send(sessions[0]!, 'segments', segments(1, ['Osmosis moves water across a partially permeable membrane.']));
+  await expect(page.getByTestId('current-cue')).toContainText('Osmosis');
+  await page.screenshot({ path: 'artifacts/workbench-production-display-390.png' });
+  const opener = page.locator('.workbench-tools').getByRole('button', { name: 'Note', exact: true });
+  await opener.click();
+  const sheet = page.getByRole('dialog', { name: 'Cue 工作栏' });
+  await expect(sheet).toBeVisible();
+  expect(await sheet.evaluate(el => el.matches(':modal'))).toBe(true);
+  const note = page.getByLabel('教师备注');
+  await note.fill('Keep this narrow-screen note.');
+  const oldId = await page.getByTestId('note-detail').getAttribute('data-cue-id');
+  await note.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(5, 9));
+  send(sessions[0]!, 'segments', segments(2, ['Diffusion follows a concentration gradient.']));
+  await expect(page.getByTestId('current-cue')).toContainText('Diffusion');
+  await expect(note).toBeFocused(); await expect(note).toHaveValue('Keep this narrow-screen note.');
+  expect(await note.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([5, 9]);
+  await expect(page.getByTestId('note-detail')).toHaveAttribute('data-cue-id', oldId!);
+  // Real keyboard traversal cannot reach covered Display, capture, import or toolbar controls.
+  for (const key of ['Tab', 'Shift+Tab']) {
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press(key);
+      // Chromium may hand focus to browser chrome (activeElement becomes body).
+      // No background document control may receive it.
+      expect(await sheet.evaluate(el => document.activeElement === document.body || el.contains(document.activeElement))).toBe(true);
+    }
+  }
+  await noOverflow();
+  await page.screenshot({ path: 'artifacts/workbench-production-note-390.png' });
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0); await expect(opener).toBeFocused();
+  await page.getByRole('button', { name: /^Lesson Flow/ }).click();
+  await expect(page.getByTestId('flow-view')).toBeVisible();
+  await page.getByTestId('cue-choice').first().click();
+  await notes(page); await expect(note).toHaveValue('Keep this narrow-screen note.');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('cue-choice').first()).toBeFocused();
+  await page.getByRole('button', { name: 'Stop microphone', exact: true }).click();
+  await expect.poll(() => sessions[0]!.commands).toContain('stop'); send(sessions[0]!, 'drained');
+  await expect(page.getByText('Session stopped', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('flow-view')).toBeVisible();
+  await noOverflow();
+  await page.screenshot({ path: 'artifacts/workbench-production-flow-390.png' });
+  await page.getByRole('button', { name: '返回当前 Display ↗' }).click();
+  await expect(page.getByTestId('current-cue')).toContainText('Diffusion');
+  expect(errors).toEqual([]);
 });

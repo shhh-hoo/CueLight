@@ -1,45 +1,11 @@
 import { inspect, flow, notes } from './workbench-helpers';
-import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { semanticReply } from './semantic-mock';
+import { configuration, setup, send, segments } from './microphone-helpers';
 
 test.beforeEach(({ page }) => { page.on('dialog', dialog => dialog.accept()); });
 
-const configuration = { preset: 'captions', language: 'cmn_en', operatingPoint: 'enhanced',
-  audioEncoding: 'pcm_f32le', channels: 1, voiceVersion: '0.2.8', rtVersion: '1.1.1', sampleRate: 16000 };
 const text = 'Electronegativity is the ability of an atom to attract a bonding pair of electrons.';
-async function setup(page: Page, refinementConfig = { configured: false, model: 'refinement-test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false }, voiceConfig = configuration, path = '/dev') {
-  const sessions: { ws: WebSocketRoute; id: string; commands: string[]; audio: number }[] = [];
-  await page.route('**/api/jev/status', route => route.fulfill({ json: { configured: true, model: 'jev-test' } }));
-  await page.route('**/api/voice/status', route => route.fulfill({ json: { configured: true, configuration } }));
-  await page.route('**/api/openai/status', route => route.fulfill({ json: refinementConfig }));
-  await page.routeWebSocket('**/api/voice/session', ws => {
-    ws.onMessage(data => {
-      if (typeof data !== 'string') { sessions.at(-1)!.audio++; return; }
-      const event = JSON.parse(data);
-      if (event.type === 'start') {
-        expect(event.sampleRate).toBe(16000);
-        expect(event.encoding).toBe('pcm_f32le');
-        sessions.push({ ws, id: event.sessionId, commands: ['start'], audio: 0 });
-        ws.send(JSON.stringify({ type: 'started', sessionId: event.sessionId, configuration: voiceConfig }));
-      } else {
-        const session = sessions.find(session => session.id === event.sessionId)!;
-        session.commands.push(event.type);
-        if (event.type === 'finish') ws.send(JSON.stringify({ type: 'stopped', sessionId: event.sessionId }));
-      }
-    });
-  });
-  await page.goto(path);
-  if (path === '/dev') await page.getByLabel('Input source').selectOption('microphone');
-  await expect(page.getByRole('button', { name: 'Start microphone', exact: true })).toBeEnabled();
-  return sessions;
-}
-function send(session: { ws: WebSocketRoute; id: string }, type: string, fields = {}) {
-  session.ws.send(JSON.stringify({ type, sessionId: session.id, ...fields }));
-}
-function segments(cycle: number, texts: string[]) {
-  return { cycle, segments: texts.map((text, index) => ({ text, sequence: cycle * 10 + index,
-    startSeconds: cycle * 3 + index, endSeconds: cycle * 3 + index + .8, speakerId: 'S1', language: 'en' })) };
-}
 
 test('real recorder → batch evidence → bounded semantic steps; stop waits for trailing Cue before finish', async ({ page }) => {
   let calls = 0;
@@ -296,4 +262,79 @@ for (const width of [1440, 1100]) test(`teacher workbench: independent Display, 
   await expect(editor).toHaveValue(draft);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(errors).toEqual([]);
+});
+
+
+test('closed sheets cannot capture Display tools; Flow keeps its own explicit target', async ({ page }) => {
+  await page.route('**/api/jev/inspect', route => route.fulfill({ json: semanticReply(route.request().postDataJSON()) }));
+  const sessions = await setup(page, undefined, configuration, '/');
+  await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect.poll(() => sessions.length).toBe(1);
+  send(sessions[0]!, 'segments', segments(1, ['Old Cue A.']));
+  await expect(page.getByTestId('current-cue')).toContainText('Old Cue A.');
+  const oldId = (await page.getByTestId('current-cue').getAttribute('data-cue-id'))!;
+  const tools = page.locator('.workbench-tools');
+  const close = page.getByRole('button', { name: '关闭工作栏' });
+  await tools.getByRole('button', { name: 'Note', exact: true }).click();
+  await page.getByLabel('教师备注').fill('Note belonging to A');
+  await close.click();
+  send(sessions[0]!, 'segments', segments(2, ['New Cue B.']));
+  await expect(page.getByTestId('current-cue')).toContainText('New Cue B.');
+  const newId = (await page.getByTestId('current-cue').getAttribute('data-cue-id'))!;
+  expect(newId).not.toBe(oldId);
+  const beforeBrowse = await journal(page);
+  await tools.getByRole('button', { name: 'Note', exact: true }).click();
+  await expect(page.getByTestId('note-detail')).toHaveAttribute('data-cue-id', newId);
+  await expect(page.getByLabel('教师备注')).toHaveValue('');
+  await page.getByLabel('教师备注').fill('Note belonging to B');
+  await close.click();
+  await tools.getByRole('button', { name: 'Reference', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Reference', exact: true })).toHaveAttribute('data-cue-id', newId);
+  await close.click();
+  await tools.getByRole('button', { name: 'Evidence', exact: true }).click();
+  await expect(page.locator('#live-source mark')).toHaveText('New Cue B.');
+  await expect(page.locator('.sheet-heading')).toContainText('Cue 2 · v1');
+  await close.click();
+  await inspect(page);
+  await notes(page); await expect(page.getByLabel('教师备注')).toHaveValue('Note belonging to A');
+  await close.click();
+  await expect(page.getByTestId('cue-choice').first()).toHaveAttribute('aria-pressed', 'true');
+  await tools.getByRole('button', { name: 'Note', exact: true }).click();
+  await expect(page.getByTestId('note-detail')).toHaveAttribute('data-cue-id', oldId);
+  await close.click();
+  await page.getByRole('button', { name: '返回当前 Display ↗' }).click();
+  await tools.getByRole('button', { name: 'Note', exact: true }).click();
+  await expect(page.getByTestId('note-detail')).toHaveAttribute('data-cue-id', newId);
+  await expect(page.getByLabel('教师备注')).toHaveValue('Note belonging to B');
+  expect(await journal(page)).toEqual(beforeBrowse);
+});
+
+test('same-Cue updates leave sheet and Flow revisions pinned; closed Display uses the live revision', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/jev/inspect', route => route.fulfill({ json: semanticReply(route.request().postDataJSON(), ++calls === 1 ? 'CREATE' : 'REVISE') }));
+  const sessions = await setup(page, undefined, configuration, '/');
+  await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect.poll(() => sessions.length).toBe(1);
+  send(sessions[0]!, 'segments', segments(1, ['A is X.']));
+  await expect(page.getByTestId('current-cue')).toContainText('A is X.');
+  await inspect(page);
+  send(sessions[0]!, 'segments', segments(2, ['Only when Y.']));
+  await expect(page.getByTestId('cue-choice').first()).toContainText('版本 2 · 已选 v1');
+  await expect(page.getByLabel('Cue 版本')).toHaveValue('1');
+  await expect(page.getByTestId('cue-detail')).not.toContainText('Only when Y.');
+  const beforeBrowse = await journal(page);
+  await page.getByRole('button', { name: '关闭工作栏' }).click();
+  await page.locator('.workbench-tools').getByRole('button', { name: 'Reference', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Reference', exact: true })).toHaveAttribute('data-revision', '1');
+  const tabs = page.getByRole('navigation', { name: 'Cue 工作', exact: true });
+  for (const name of ['Note', 'Reference', 'Evidence', 'Cue']) {
+    const tab = tabs.getByRole('button', { name, exact: true });
+    await tab.focus(); await page.keyboard.press('Enter');
+    await expect(tab).toBeFocused();
+  }
+  await page.getByRole('button', { name: '关闭工作栏' }).click();
+  await page.getByRole('button', { name: '返回当前 Display ↗' }).click();
+  await page.locator('.workbench-tools').getByRole('button', { name: 'Reference', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Reference', exact: true })).toHaveAttribute('data-revision', '2');
+  expect(await journal(page)).toEqual(beforeBrowse);
 });

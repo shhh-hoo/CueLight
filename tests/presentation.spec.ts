@@ -48,11 +48,17 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     ];
     for (let i = 0; i < variants.length; i++) {
       result = variants[i]!;
-      if (i) await page.getByRole('button', { name: 'Reset', exact: true }).click();
+      if (i) {
+        await page.getByRole('button', { name: '关闭工作栏' }).click();
+        await page.getByRole('button', { name: 'Reset', exact: true }).click();
+      }
       await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250);
       await page.getByRole('button', { name: 'Pause replay' }).click();
       await inspect(page); const detail = page.getByTestId('cue-detail'); await expect(detail).toContainText(source);
+      // Narrow sheets isolate the background; close before using provider controls.
+      if (viewport.width < 800) await page.getByRole('button', { name: '关闭工作栏' }).click();
       await page.getByRole('checkbox', { name: 'Text refinement', exact: false }).check(); await expect.poll(() => calls).toBe(i + 1);
+      if (viewport.width < 800) await inspect(page);
       if (result.kind === 'source') await expect(detail.locator('.cue-presentation')).toHaveCount(0);
       else {
         await expect(detail.locator('.cue-presentation > *')).toHaveCount(result.blocks.length);

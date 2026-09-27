@@ -91,7 +91,9 @@ select { border: 1px solid var(--line); background: var(--side); color: var(--in
 .trace-steps strong { font-size: 12px; font-weight: 500; }
 .step-meta, .trace-steps small, .step-acceptance { font-size: 10px; color: var(--sub); }
 .step-acceptance { padding: 0 8px; }
-.context-sheet { width: 380px; flex: 0 0 380px; min-width: 0; border-left: 1px solid var(--line); background: var(--side); display: flex; flex-direction: column; outline: none; }
+.context-sheet { height: auto; min-height: 0; position: static; margin: 0; padding: 0; color: inherit; border: 0; max-width: none; max-height: none; width: 380px; flex: 0 0 380px; min-width: 0; border-left: 1px solid var(--line); background: var(--side); display: flex; flex-direction: column; outline: none; }
+.context-sheet:not([open]) { display: none; }
+.context-sheet::backdrop { background: #24342c35; }
 .sheet-heading { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px 8px; font-size: 11px; color: var(--sub); }
 .sheet-heading button { font-size: 22px; }
 .sheet-tabs { display: flex; align-items: center; gap: 8px; padding: 0 20px 12px; border-bottom: 1px solid var(--line); }
@@ -142,7 +144,7 @@ textarea { width: 100%; min-height: 280px; padding: 12px 0; margin: 8px 0; backg
 .debug-panel pre { white-space: pre-wrap; }
 .debug-panel header, .debug-summary { display: flex; gap: 20px; flex-wrap: wrap; }
 @media (max-width: 800px) {
-  .context-sheet { position: absolute; right: 0; top: 0; bottom: 0; width: min(380px, 100%); z-index: 3; box-shadow: -10px 0 30px #24342c08; }
+  .context-sheet { position: fixed; left: auto; right: 0; top: 0; bottom: 0; height: 100dvh; width: min(380px, 100%); z-index: 3; box-shadow: -10px 0 30px #24342c08; }
   .cue-surface { padding: 32px; }
   .workbench-toolbar { padding: 8px 16px; gap: 4px; flex-wrap: wrap; }
   .workbench-toolbar nav, .workbench-tools { gap: 2px; }
