@@ -1,5 +1,12 @@
 import { latestSourceId, replayReply, semanticReply } from './semantic-mock';
 import { test, expect, type Page } from '@playwright/test';
+import type { LessonHistory } from '../src/alive/types';
+
+test.beforeEach(async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
+  await page.route('**/api/openai/status', route => route.fulfill({ json: { configured: false, model: 'test', timeoutMs: 6000, maxInputChars: 16000, defaultEnabled: false } }));
+  await page.route('**/api/openai/refine', route => route.abort());
+});
 
 const osmosis = 'Osmosis is the movement of water across a partially permeable membrane.';
 async function ready(page: Page) {
@@ -38,21 +45,22 @@ test('Jev HTTP decisions drive the existing Engine and preserve Cue identity on 
   await page.getByRole('button', { name: 'Show diagnostics' }).click();
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
-  const id = await page.getByTestId('current-cue').getAttribute('data-cue-id');
+  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
+  const id = await page.getByTestId('cue-detail').getAttribute('data-cue-id');
   await page.clock.runFor(3_600);
-  await expect(page.getByTestId('current-cue')).toContainText('The moving particles are water, not solute.');
-  await expect(page.getByTestId('current-cue')).toHaveAttribute('data-cue-id', id!);
+  await expect(page.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
+  await expect(page.getByTestId('cue-detail')).toHaveAttribute('data-cue-id', id!);
   await expect(page.getByTestId('returned-action')).toHaveText('REVISE');
   await expect(page.getByText('Jev provider', { exact: false })).toBeVisible();
   await expect(page.getByText('Decision latency', { exact: true })).toBeVisible();
   await page.clock.runFor(6_200);
-  await expect(page.getByTestId('current-cue')).toContainText('Diffusion is the net movement');
-  await expect(page.getByTestId('previous-cue')).toContainText(osmosis);
+  await page.getByTestId('cue-choice').nth(1).click();
+  await expect(page.getByTestId('cue-detail')).toContainText('Diffusion is the net movement');
+  await expect(page.getByTestId('cue-choice').first()).toContainText(osmosis);
   expect(payloadKeys.every(keys => JSON.stringify(keys) === JSON.stringify(['contract', 'inspectionId', 'omittedSourceAlternatives', 'sessionEpoch', 'sessionId', 'sources', 'stage', 'workingSet']))).toBe(true);
 });
 
-test('Jev failure keeps the existing Cue and shows a service error outside the learner surface', async ({ page }) => {
+test('Jev failure keeps the existing Cue and shows a service error outside source content', async ({ page }) => {
   await page.clock.install();
   await page.route('**/api/jev/inspect', route => {
     const input = route.request().postDataJSON();
@@ -66,11 +74,11 @@ test('Jev failure keeps the existing Cue and shows a service error outside the l
   await ready(page);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
+  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
   await page.clock.runFor(3_600);
   await expect(page.getByRole('alert')).toContainText('Jev could not make a decision');
-  await expect(page.getByTestId('current-cue')).not.toContainText('The moving particles');
-  await expect(page.getByRole('region', { name: 'Learner surface' })).not.toContainText('Jev');
+  await expect(page.getByTestId('cue-detail')).not.toContainText('The moving particles');
+  await expect(page.getByTestId('cue-detail')).not.toContainText('Jev');
 });
 
 test('reset and provider switch abort delayed Jev work without writing into a new session', async ({ page }) => {
@@ -92,10 +100,10 @@ test('reset and provider switch abort delayed Jev work without writing into a ne
   await page.getByLabel('Decision provider', { exact: true }).selectOption('mock');
   release();
   await page.clock.runFor(20_000);
-  await expect(page.getByTestId('current-cue')).toHaveCount(0);
+  await expect(page.getByTestId('cue-detail')).toHaveCount(0);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
+  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
   expect(received).toBe(1);
 });
 
@@ -111,4 +119,54 @@ test('configuration service failure is recoverable without making a model reques
   available = true;
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(page.getByRole('button', { name: 'Start replay' })).toBeEnabled();
+});
+
+test('delete invalidates a delayed semantic result before it can resurrect local history', async ({ page }) => {
+  await page.clock.install(); let release!: () => void; let calls = 0;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/jev/inspect', async route => {
+    calls++; const input = route.request().postDataJSON(); await gate;
+    await route.fulfill({ json: semanticReply(input) }).catch(() => {});
+  }); await ready(page);
+  await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(100); await expect.poll(() => calls).toBe(1);
+  const keys = await page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find(k => k.startsWith('cuelight:alive:') && JSON.parse(sessionStorage.getItem(k)!).events.some((e: { operations: { type: string }[] }) => e.operations.some(op => op.type === 'RECORD_EVIDENCE')))!;
+    return [key, key.replace('cuelight:alive:', 'cuelight:trace:')];
+  });
+  await page.getByRole('button', { name: '删除当前本地记录' }).click(); release(); await page.clock.runFor(20_000);
+  await expect(page.getByTestId('cue-choice')).toHaveCount(0);
+  expect(await page.evaluate(keys => keys.map(k => sessionStorage.getItem(k)), keys)).toEqual(keys.map(() => null));
+});
+
+test('native Jev accepted history exports to TRACE and reopens without provider calls', async ({ page, context }) => {
+  await page.clock.install();
+  await page.route('**/api/jev/inspect', route => route.fulfill({ json: replayReply(route.request().postDataJSON()) }));
+  await ready(page);
+  await page.getByRole('button', { name: 'Start replay' }).click();
+  await page.clock.runFor(16_850);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 TRACE 文件', exact: true }).click();
+  const stream = (await (await download).createReadStream())!;
+  let json = ''; for await (const chunk of stream) json += chunk;
+  const history: LessonHistory = JSON.parse(json).history;
+  const native = history.events.filter(e => e.inspection?.contractVersion === 'alive-jev-v1');
+  expect(native.some(e => e.inspection?.selectedCandidate.action === 'CREATE')).toBe(true);
+  expect(native.some(e => e.inspection?.selectedCandidate.action === 'REVISE')).toBe(true);
+  expect(native.every(e => e.inspection!.selectedCandidate.source.ranges.length > 0)).toBe(true);
+  const persisted = await page.evaluate(id => Object.keys(sessionStorage)
+    .filter(key => key.startsWith('cuelight:alive:')).map(key => JSON.parse(sessionStorage.getItem(key)!))
+    .find(value => value.sessionId === id), history.sessionId);
+  expect(history).toEqual(persisted);
+
+  const fresh = await context.newPage(); const calls: string[] = [];
+  await fresh.route('**/api/**', route => { calls.push(route.request().url()); return route.abort(); });
+  await fresh.goto('/');
+  await fresh.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'native.trace.json', mimeType: 'application/json', buffer: Buffer.from(json) });
+  const view = fresh.getByRole('region', { name: '教师 TRACE' }).filter({ visible: true });
+  await expect(view.getByTestId('cue-choice')).toHaveCount(2);
+  await expect(view.getByTestId('cue-detail')).toContainText(osmosis);
+  await expect(view.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
+  await view.getByLabel('Cue 版本').selectOption('1');
+  await expect(view.getByTestId('cue-detail')).not.toContainText('The moving particles');
+  expect(calls).toEqual([]);
 });

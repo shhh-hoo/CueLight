@@ -1,103 +1,81 @@
 import { test, expect } from '@playwright/test';
-
 const osmosis = 'Osmosis is the movement of water across a partially permeable membrane.';
 const clarification = 'The moving particles are water, not solute.';
 const diffusion = 'Diffusion is the net movement of particles from higher to lower concentration.';
 
-test('one real-time replay: filler stays hidden, UPDATE stays in place, NEW transitions, previous expires', async ({ page, baseURL }) => {
-  const errors: string[] = [];
-  const remoteRequests: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('request', request => { if (!request.url().startsWith(`${baseURL}/`)) remoteRequests.push(request.url()); });
-  await page.goto('/');
-  const surface = page.getByRole('region', { name: 'Learner surface' });
-  await expect(surface).toContainText('A little space');
-  await expect(page.getByRole('complementary', { name: 'Developer diagnostics' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Show diagnostics' }).click();
-  await page.getByRole('button', { name: 'Start replay' }).click();
-  await expect(page.getByTestId('returned-action')).toHaveText('QUIET');
-  await expect(surface).not.toContainText('All right');
-  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
-  const id = await page.getByTestId('current-cue').getAttribute('data-cue-id');
-  await page.getByTestId('current-cue').evaluate(element => { element.setAttribute('data-identity-marker', 'same-element'); });
-  await expect(page.getByTestId('current-cue')).toContainText(clarification, { timeout: 6_000 });
-  await expect(page.getByTestId('current-cue')).toHaveAttribute('data-cue-id', id!);
-  await expect(page.getByTestId('current-cue')).toHaveAttribute('data-identity-marker', 'same-element');
-  await expect(page.getByTestId('returned-action')).toHaveText('UPDATE_CURRENT');
-  await expect(page.getByTestId('current-cue')).toContainText(diffusion, { timeout: 9_000 });
-  await expect(page.getByTestId('previous-cue')).toContainText(`${osmosis} ${clarification}`);
-  await expect(page.getByTestId('current-cue')).not.toHaveAttribute('data-cue-id', id!);
-  await page.screenshot({ path: 'artifacts/replay-transition-desktop.png', fullPage: true });
-  await expect(page.getByTestId('previous-cue')).toHaveCount(0, { timeout: 6_000 });
-  await expect(page.getByRole('button', { name: 'Replay complete' })).toBeDisabled();
-  await expect(surface).not.toContainText('Okay, let us pause');
-  await expect(surface).not.toContainText('We will look at an example');
-  expect(errors).toEqual([]);
-  expect(remoteRequests).toEqual([]);
-  await page.getByRole('button', { name: 'Reset', exact: true }).click();
-  await expect(surface).toContainText('A little space');
-  await page.getByRole('button', { name: 'Show diagnostics' }).click();
-  await expect(page.getByTestId('evidence-version')).toHaveText('0');
-});
-
-test('pause/continue, reset, and lesson switch are deterministic', async ({ page }) => {
-  await page.clock.install();
-  await page.goto('/');
+test('offline replay keeps every Cue and revision; new Cues do not steal the teacher selection', async ({ page }) => {
+  const errors: string[] = []; const remote: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('request', r => { if (!r.url().startsWith('http://127.0.0.1:')) remote.push(r.url()); });
+  await page.clock.install(); await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Learner surface' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
-  await page.getByRole('button', { name: 'Pause replay' }).click();
-  await page.clock.runFor(60_000);
-  await expect(page.getByTestId('current-cue')).not.toContainText(clarification);
-  await page.getByRole('button', { name: 'Continue replay' }).click();
+  const detail = page.getByTestId('cue-detail');
+  await expect(detail).toContainText(osmosis);
+  const id = await detail.getAttribute('data-cue-id');
+  await detail.evaluate(e => e.setAttribute('data-marker', 'stable'));
   await page.clock.runFor(3_600);
-  await expect(page.getByTestId('current-cue')).toContainText(clarification);
-  await page.getByLabel('Lesson', { exact: true }).selectOption('programming');
-  await expect(page.getByTestId('current-cue')).toHaveCount(0);
-  await page.clock.runFor(20_000);
-  await expect(page.getByTestId('current-cue')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Start replay' }).click();
-  await page.clock.runFor(2_250);
-  await expect(page.getByTestId('current-cue')).toContainText('A Python list is mutable.');
-  await page.getByRole('button', { name: 'Reset', exact: true }).click();
-  await page.clock.runFor(20_000);
-  await expect(page.getByTestId('current-cue')).toHaveCount(0);
+  await expect(detail).toContainText(clarification);
+  await expect(detail).toHaveAttribute('data-cue-id', id!);
+  await expect(detail).toHaveAttribute('data-marker', 'stable');
+  await page.getByLabel('Cue 版本').selectOption('1');
+  await expect(detail).not.toContainText(clarification);
+  await page.clock.runFor(11_000);
+  await expect(page.getByTestId('cue-choice')).toHaveCount(2);
+  await expect(detail).toHaveAttribute('data-cue-id', id!);
+  await expect(detail).not.toContainText(diffusion);
+  await expect(detail).not.toContainText(clarification);
+  await expect(page.getByRole('button', { name: 'Replay complete' })).toBeDisabled();
+  await page.getByTestId('cue-choice').nth(1).click();
+  await expect(detail).toContainText(diffusion);
+  await page.getByTestId('cue-choice').first().click();
+  await expect(detail).toContainText(clarification);
+  await page.screenshot({ path: 'artifacts/trace-desktop.png', fullPage: true });
+  expect(errors).toEqual([]); expect(remote).toEqual([]);
 });
 
+test('pause, cancelled leave, confirmed switch and reset preserve session isolation', async ({ page }) => {
+  await page.clock.install(); await page.goto('/');
+  await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250);
+  await page.getByRole('button', { name: 'Pause replay' }).click(); await page.clock.runFor(60_000);
+  await expect(page.getByTestId('cue-detail')).not.toContainText(clarification);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByLabel('Lesson', { exact: true }).selectOption('programming');
+  await expect(page.getByLabel('Lesson', { exact: true })).toHaveValue('science');
+  await page.getByRole('button', { name: 'Continue replay' }).click(); await page.clock.runFor(3_600);
+  await expect(page.getByTestId('cue-detail')).toContainText(clarification);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Lesson', { exact: true }).selectOption('programming'); await page.clock.runFor(20_000);
+  await expect(page.getByTestId('cue-choice')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(2_250);
+  await expect(page.getByTestId('cue-detail')).toContainText('A Python list is mutable.');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Reset', exact: true }).click(); await page.clock.runFor(20_000);
+  await expect(page.getByTestId('cue-choice')).toHaveCount(0);
+});
 for (const [subject, expected] of [
   ['history', 'The League of Nations was established in 1920.'],
   ['literature', 'A soliloquy lets a character speak their thoughts aloud while alone on stage.'],
   ['programming', 'A Python tuple is immutable: you cannot replace its elements after creation.'],
   ['mathematics', 'If a product of two factors is zero, at least one factor must be zero.'],
-]) {
-  test(`${subject} plays through the same product path`, async ({ page }) => {
-    await page.clock.install();
-    await page.goto('/');
-    await page.getByLabel('Lesson', { exact: true }).selectOption(subject!);
-    await page.getByRole('button', { name: 'Start replay' }).click();
-    await page.clock.runFor(16_850);
-    await expect(page.getByTestId('current-cue')).toContainText(expected!);
-    await expect(page.getByTestId('previous-cue')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Replay complete' })).toBeDisabled();
-  });
-}
+]) test(`${subject} remains readable after replay ends`, async ({ page }) => {
+  await page.clock.install(); await page.goto('/'); await page.getByLabel('Lesson', { exact: true }).selectOption(subject!);
+  await page.getByRole('button', { name: 'Start replay' }).click(); await page.clock.runFor(16_850);
+  await expect(page.getByTestId('cue-choice')).toHaveCount(2);
+  await page.getByTestId('cue-choice').nth(1).click(); await expect(page.getByTestId('cue-detail')).toContainText(expected!);
+  await expect(page.getByRole('button', { name: 'Replay complete' })).toBeDisabled();
+});
 
-test('narrow layout stays readable, works by keyboard and tolerates reduced motion', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.clock.install();
-  await page.goto('/');
-  const start = page.getByRole('button', { name: 'Start replay' });
-  await start.focus();
-  await page.keyboard.press('Enter');
-  await page.clock.runFor(12_050);
-  await expect(page.getByTestId('current-cue')).toContainText(diffusion);
-  await expect(page.getByTestId('previous-cue')).toBeVisible();
+test('narrow TRACE supports keyboard selection, notes and full source without horizontal clipping', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.clock.install(); await page.goto('/');
+  await page.getByRole('button', { name: 'Start replay' }).focus(); await page.keyboard.press('Enter'); await page.clock.runFor(16_850);
+  await page.getByTestId('cue-choice').nth(1).focus(); await page.keyboard.press('Enter');
+  await expect(page.getByTestId('cue-detail')).toContainText(diffusion);
+  await page.getByLabel('教师备注').fill('课后核对');
+  await page.getByTestId('cue-detail').getByRole('button', { name: /原文/ }).first().focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('#live-source mark')).toHaveText(diffusion);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  const surface = await page.getByRole('region', { name: 'Learner surface' }).boundingBox();
-  const current = await page.getByTestId('current-cue').boundingBox();
-  expect(current!.x).toBeGreaterThanOrEqual(surface!.x);
-  expect(current!.x + current!.width).toBeLessThanOrEqual(surface!.x + surface!.width);
-  await page.screenshot({ path: 'artifacts/replay-transition-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/trace-mobile.png', fullPage: true });
 });

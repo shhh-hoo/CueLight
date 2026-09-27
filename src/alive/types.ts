@@ -78,6 +78,15 @@ export type SemanticOperation =
   | { type: 'RELATE'; relation: CueRelation }
   | { type: 'DEFER'; deferredId: string; ranges: readonly EvidenceBinding[]; reason: string; relatedCueIds: readonly string[] }
   | { type: 'RESOLVE_DEFERRED'; deferredId: string; status: 'resolved' | 'closed_incomplete'; basis: readonly EvidenceBinding[] };
+// The complete grounded selection is retained in accepted history, not just its key.
+export type SemanticCandidate = Readonly<{
+  key: string;
+  action: 'WAIT' | 'NO_CHANGE' | 'CREATE' | 'REVISE' | 'RECALL' | 'WITHDRAW' | 'RELATION_INTENT' | 'RELATE' | 'NONE';
+  source: Readonly<{ alias: string; ranges: readonly EvidenceBinding[] }>;
+  cueId?: string; cueRevision?: number; partId?: string;
+  mode?: 'append' | 'replace' | 'criticise';
+  relationKind?: 'ELABORATES' | 'EXAMPLE_OF' | 'CONTRASTS_WITH' | 'RECAPS' | 'REFERENCES';
+}>;
 export type SemanticProposal = Readonly<{
   proposalId: string; origin: 'host' | 'teacher' | 'jev' | 'llm';
   sessionId: string; sessionEpoch: number; readSet: ReadSet;
@@ -85,7 +94,7 @@ export type SemanticProposal = Readonly<{
   // CREATE uses its identityKey here; existing objects use their stable cueId.
   inspection?: Readonly<{ contractVersion: 'alive-jev-v1'; inspectionId: string; stage: 'primary' | 'relation';
     parentInspectionId?: string; evidenceScope: readonly EvidenceBinding[];
-    selectedCandidate: { action: string; key: string }; judgment: unknown }>;
+    selectedCandidate: SemanticCandidate; judgment: unknown }>;
   foreground?: string; policyVersion: 'alive-foundation-v1';
 }>;
 export type AcceptedEvent = SemanticProposal & Readonly<{
