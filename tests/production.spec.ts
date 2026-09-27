@@ -12,7 +12,16 @@ test('production demo runs without diagnostics, credentials, or external model r
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(16_850);
   await expect(page.getByTestId('current-cue')).toContainText('Diffusion is the net movement');
-  expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 });
+  // Alive Cue replaces the former no-persistence invariant with a tab-scoped,
+  // source-only acceptance journal. Credentials/diagnostics stay out of it.
+  const stored = await page.evaluate(() => ({ local: localStorage.length,
+    entries: Object.keys(sessionStorage).map(key => ({ key, value: JSON.parse(sessionStorage.getItem(key)!) })) }));
+  expect(stored.local).toBe(0);
+  expect(stored.entries).toHaveLength(1);
+  expect(stored.entries[0]!.key).toMatch(/^cuelight:alive:/);
+  expect(stored.entries[0]!.value.format).toBe('alive-cue-v1');
+  expect(stored.entries[0]!.value.events.length).toBeGreaterThan(0);
+  expect(JSON.stringify(stored)).not.toMatch(/apiKey|Authorization|diagnostics|audioData/);
   await page.reload();
   await expect(page.getByTestId('current-cue')).toHaveCount(0);
   expect(errors).toEqual([]);

@@ -1,3 +1,4 @@
+import { matchesCueRevision } from '../alive/projection';
 import { refinementConfiguration, type RefinementConfiguration } from '../runtime-config';
 import type { CueEngine } from '../cue/cue-engine';
 import type { Cue } from '../cue/types';
@@ -75,7 +76,7 @@ export class CueRefinement {
 
     // The Engine publishes accepted source Cues while request still holds the
     // exact decision input. Do not substitute a newer evidence window here.
-    const fragments = snapshot.request?.evidence.fragments;
+    const fragments = snapshot.request?.evidence.fragments ?? snapshot.lesson.evidenceOrder.map(id => snapshot.lesson.evidence[id]!);
     const first = fragments?.findIndex(fragment => fragment.id === currentCue.sourceFragmentIds[0]) ?? -1;
     const sourceFragments = fragments?.slice(first, first + currentCue.sourceFragmentIds.length) ?? [];
     if (!fragments || first < 0 || sourceFragments.length === 0 || sourceFragments.length !== currentCue.sourceFragmentIds.length ||
@@ -140,7 +141,7 @@ export class CueRefinement {
     if (this.disposed || this.snapshot.stopped || !this.snapshot.enabled || this.job || !this.pending || !this.config) return;
     const input = this.pending;
     this.pending = null;
-    if (!this.isCurrent(input)) return;
+    if (!this.canPublish(input)) return;
     if (input.sourceText.length + input.referenceContext.reduce((sum, fragment) => sum + fragment.text.length, 0) > this.config.maxInputChars) {
       this.result(input, 'too-large');
       this.publish({ lastOutcome: 'too-large', error: refinementMessages['too-large'] });
@@ -152,8 +153,11 @@ export class CueRefinement {
     this.record({ type: 'refinement-request', atMonoMs: performance.now(), input, model: job.config.model, style: 'presentation-v1' });
     void this.run(job);
   }
-  private isCurrent(input: CueTarget) {
-    return !!this.sourceCue && sameTarget(input, this.target(this.sourceCue));
+  private canPublish(input: CueTarget) {
+    // Display scheduling remains current-only for this slice. Semantic validity
+    // is separately reusable for later non-current jobs.
+    return matchesCueRevision(this.engine.getSnapshot().lesson, input.cueId, input.sourceRevision) &&
+      !!this.sourceCue && sameTarget(input, this.target(this.sourceCue));
   }
   private result(input: CueTarget, outcome: RefinementOutcome, result?: PresentationResult, failure?: RefinementFailure) {
     this.record({ type: 'refinement-result', atMonoMs: performance.now(), target: {
@@ -165,7 +169,7 @@ export class CueRefinement {
       const reply = await refineCue(job.input, job.controller.signal, job.config, configuration => {
         this.record({ type: 'refinement-configuration', atMonoMs: performance.now(), configuration });
       });
-      if (this.disposed || job.epoch !== this.epoch || !this.isCurrent(job.input)) {
+      if (this.disposed || job.epoch !== this.epoch || !this.canPublish(job.input)) {
         this.result(job.input, this.disposed || job.epoch !== this.epoch ? 'cancelled' : 'stale', 'result' in reply ? reply.result : undefined,
           'error' in reply ? reply.error : undefined); return;
       }
@@ -183,7 +187,7 @@ export class CueRefinement {
         this.show({ ...this.snapshot.cues, currentCue });
       }
     } catch {
-      const current = !this.disposed && job.epoch === this.epoch && this.isCurrent(job.input);
+      const current = !this.disposed && job.epoch === this.epoch && this.canPublish(job.input);
       this.result(job.input, current ? 'unavailable' : 'cancelled', undefined, 'unavailable');
       if (current) this.publish({ lastOutcome: 'unavailable', error: refinementMessages.unavailable });
     } finally {

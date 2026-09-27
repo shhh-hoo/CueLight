@@ -2,9 +2,12 @@ import { buildCandidates, type Candidate } from '../candidates/candidate-builder
 import { systemClock, type Clock } from '../clock';
 import { validateDecision, type CueDecisionProvider, type DecisionInput } from '../decision/decision-provider';
 import { QUIET, type CueDecision } from '../decision/types';
-import { appendEvidence, emptyEvidence, type EvidenceFragment, type EvidenceWindow } from '../evidence/evidence-buffer';
+import { appendEvidence, type EvidenceFragment, type EvidenceWindow } from '../evidence/evidence-buffer';
 import type { TeachingEvidenceSource } from '../replay/replay-source';
-import { applyDecision, expirePrevious } from './cue-reducer';
+import { LessonStore, memoryJournal } from '../alive/journal';
+import { legacyProposal } from '../alive/legacy-adapter';
+import { projectDisplay, projectEvidenceWindow, semanticWorkingSet } from '../alive/projection';
+import type { LessonState, SemanticProposal } from '../alive/types';
 import { emptyCueState, type CueState } from './types';
 
 export const PREVIOUS_CUE_MS = 4_000;
@@ -21,6 +24,8 @@ export type DecisionRecord = Readonly<{
 }>;
 
 export type EngineSnapshot = Readonly<{
+  lesson: LessonState;
+  workingSet: ReturnType<typeof semanticWorkingSet>;
   evidence: EvidenceWindow;
   candidates: readonly Candidate[];
   cues: CueState;
@@ -31,26 +36,55 @@ export type EngineSnapshot = Readonly<{
   inputError: string | null;
 }>;
 
-function initialSnapshot(): EngineSnapshot {
+function initialSnapshot(lesson: LessonState): EngineSnapshot {
   return Object.freeze({
-    evidence: emptyEvidence(), candidates: Object.freeze([]), cues: emptyCueState(),
+    lesson, workingSet: semanticWorkingSet(lesson), evidence: projectEvidenceWindow(lesson), candidates: Object.freeze([]), cues: emptyCueState(),
     incoming: null, status: 'idle', request: null, lastDecision: null, inputError: null,
   });
 }
 
 export class CueEngine {
-  private snapshot = initialSnapshot();
+  private snapshot: EngineSnapshot;
+  private lesson: LessonStore;
   private listeners = new Set<() => void>();
   private inFlight = false;
   private dirty = false;
   private generation = 0;
-  private cueSequence = 0;
+  private proposalSequence = 0;
+  private readonly proposalPrefix = crypto.randomUUID();
   private disposed = false;
   private expiry: ReturnType<typeof setTimeout> | undefined;
   private disconnectSource: (() => void) | undefined;
   private drainListeners = new Set<() => void>();
 
-  constructor(private readonly provider: CueDecisionProvider, private readonly clock: Clock = systemClock) {}
+  constructor(private readonly provider: CueDecisionProvider, private readonly clock: Clock = systemClock,
+    store?: LessonStore) {
+    this.lesson = store ?? new LessonStore(memoryJournal(crypto.randomUUID()));
+    this.snapshot = initialSnapshot(this.lesson.getSnapshot());
+    this.refreshLesson();
+  }
+
+  exportLesson = () => this.lesson.export();
+  // Host entry point for deterministic operations and lesson-local recall. It
+  // uses the same writer as the legacy interpreter, never a second Cue reducer.
+  acceptProposal(proposal: SemanticProposal): void {
+    if (this.disposed) throw new Error('Engine disposed.');
+    this.lesson.accept(proposal, this.clock.now());
+    this.refreshLesson();
+  }
+  private refreshLesson(): void {
+    const lesson = this.lesson.getSnapshot();
+    const cues = projectDisplay(lesson, this.clock.now(), PREVIOUS_CUE_MS, this.snapshot.cues);
+    if (cues.previousCue !== this.snapshot.cues.previousCue) {
+      this.clearExpiry();
+      if (cues.previousCue) this.expiry = this.clock.setTimeout(() => {
+        this.expiry = undefined; this.refreshLesson();
+      }, Math.max(0, lesson.attention.changedAt + PREVIOUS_CUE_MS - this.clock.now()));
+    }
+    const evidence = projectEvidenceWindow(lesson);
+    this.publish({ evidence, lesson, workingSet: semanticWorkingSet(lesson), cues,
+      candidates: buildCandidates(evidence, cues.currentCue) });
+  }
 
   getSnapshot = (): EngineSnapshot => this.snapshot;
 
@@ -75,13 +109,27 @@ export class CueEngine {
   acceptBatch = (fragments: readonly EvidenceFragment[]): void => {
     if (this.disposed || fragments.length === 0) return;
     let evidence = this.snapshot.evidence;
+    const lesson = this.lesson.getSnapshot();
     try {
-      for (const fragment of fragments) evidence = appendEvidence(evidence, fragment);
+      const fresh: EvidenceFragment[] = [];
+      for (const fragment of fragments) {
+        const old = lesson.evidence[fragment.id];
+        if (!old && !fresh.some(f => f.id === fragment.id)) {
+          evidence = appendEvidence(evidence, fragment); fresh.push(fragment);
+        }
+      }
+      // Even a retransmission is validated against immutable provider identity.
+      this.lesson.accept({ proposalId: `capture-${this.proposalPrefix}-${++this.proposalSequence}`, origin: 'host',
+        sessionId: lesson.sessionId, sessionEpoch: lesson.sessionEpoch, readSet: {},
+        operations: [{ type: 'RECORD_EVIDENCE', fragments }], processing: [], policyVersion: 'alive-foundation-v1' }, this.clock.now());
+      if (fresh.length === 0) { this.refreshLesson(); return; }
     } catch (error) {
       this.publish({ inputError: error instanceof Error ? error.message : 'Invalid evidence.' });
       return;
     }
+    evidence = projectEvidenceWindow(this.lesson.getSnapshot());
     this.publish({
+      lesson: this.lesson.getSnapshot(), workingSet: semanticWorkingSet(this.lesson.getSnapshot()),
       evidence, incoming: evidence.fragments.at(-1)!, inputError: null,
       candidates: buildCandidates(evidence, this.snapshot.cues.currentCue),
     });
@@ -93,9 +141,11 @@ export class CueEngine {
     this.generation++;
     for (const check of this.drainListeners) check();
     this.dirty = false;
-    this.cueSequence = 0;
+    this.proposalSequence = 0;
     this.clearExpiry();
-    this.snapshot = initialSnapshot();
+    const priorLesson = this.lesson.getSnapshot();
+    this.lesson = new LessonStore(memoryJournal(priorLesson.sessionId, priorLesson.sessionEpoch + 1));
+    this.snapshot = initialSnapshot(this.lesson.getSnapshot());
     this.publish({ status: this.inFlight ? 'settling-previous-session' : 'idle' });
   }
 
@@ -147,6 +197,8 @@ export class CueEngine {
     this.inFlight = true;
     this.dirty = false;
     const generation = this.generation;
+    const capturedLesson = this.lesson.getSnapshot();
+    const proposalId = `inspection-${this.proposalPrefix}-${++this.proposalSequence}`;
     const input: DecisionInput = Object.freeze({
       evidence: this.snapshot.evidence,
       candidates: this.snapshot.candidates,
@@ -171,20 +223,13 @@ export class CueEngine {
         : null;
       const stale = discardReason !== null;
       if (!stale && !error) {
-        const prior = this.snapshot.cues;
-        const next = applyDecision(prior, decision, input.candidates, this.clock.now(),
-          `cue-${generation}-${++this.cueSequence}`);
-        if (next.previousCue !== prior.previousCue) {
-          this.clearExpiry();
-          if (next.previousCue) {
-            this.expiry = this.clock.setTimeout(() => {
-              this.expiry = undefined;
-              this.publish({ cues: expirePrevious(this.snapshot.cues) });
-            }, PREVIOUS_CUE_MS);
-          }
+        try {
+          const proposal = legacyProposal(capturedLesson, input, decision, proposalId);
+          if (proposal) this.lesson.accept(proposal, this.clock.now());
+          this.refreshLesson();
+        } catch (caught) {
+          error = caught instanceof Error ? caught.message : 'Semantic acceptance failed.';
         }
-        // A follow-up must see candidates rebuilt for the newly applied Cue.
-        this.publish({ cues: next, candidates: buildCandidates(this.snapshot.evidence, next.currentCue) });
       }
       this.publish({ lastDecision: Object.freeze({
         input, decision, error, discardReason, durationMs: Math.max(0, this.clock.now() - startedAt),
