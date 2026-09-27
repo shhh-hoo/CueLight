@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { CueRefinement } from '../refinement/cue-refinement';
 
-export function RefinementControls({ refinement }: { refinement: CueRefinement }) {
+export function RefinementControls({ refinement, compact = false }: { refinement: CueRefinement; compact?: boolean }) {
   const snapshot = useSyncExternalStore(refinement.subscribe, refinement.getSnapshot);
   const [configured, setConfigured] = useState(false);
   const [message, setMessage] = useState('Checking optional text refinement…');
@@ -27,9 +27,9 @@ export function RefinementControls({ refinement }: { refinement: CueRefinement }
   }, [attempt, refinement]);
   return <section className="provider-setup" aria-label="Text refinement controls">
     <label><input type="checkbox" checked={snapshot.enabled} disabled={!configured || (snapshot.stopped && !snapshot.enabled)}
-      onChange={event => refinement.setEnabled(event.target.checked)} /> Text refinement · preserve meaning, clarify structure</label>
-    <p>{message} 已生成的整理表达单独保留；关闭此项只停止后续生成。</p>
-    {!configured && <button onClick={() => setAttempt(value => value + 1)}>Check OpenAI again</button>}
+      onChange={event => refinement.setEnabled(event.target.checked)} /> {compact ? '整理呈现' : 'Text refinement · preserve meaning, clarify structure'}</label>
+    {!compact && <p>{message} 已生成的整理表达单独保留；关闭此项只停止后续生成。</p>}
+    {!configured && <button onClick={() => setAttempt(value => value + 1)}>{compact ? '重新检查呈现服务' : 'Check OpenAI again'}</button>}
     {snapshot.busy && !snapshot.stopped && snapshot.enabled && <p role="status">Preparing presentation…</p>}
     {snapshot.error && <p role="status">{snapshot.error}</p>}
   </section>;

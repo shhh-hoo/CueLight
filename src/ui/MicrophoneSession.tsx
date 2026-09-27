@@ -47,7 +47,7 @@ function createRuntime() {
 }
 type Runtime = ReturnType<typeof createRuntime>;
 
-export function MicrophoneSession({ guard }: { guard: LeaveGuard }) {
+export function MicrophoneSession({ guard, development = false }: { guard: LeaveGuard; development?: boolean }) {
   const current = useRef<Runtime | null>(null);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const reset = useCallback(() => {
@@ -66,10 +66,10 @@ export function MicrophoneSession({ guard }: { guard: LeaveGuard }) {
     return () => { leave(); window.removeEventListener('pagehide', leave); window.removeEventListener('pageshow', restore); };
   }, [reset]);
   return runtime ? <MicrophoneView key={runtime.sessionId}
-    runtime={runtime} reset={reset} guard={guard} /> : <p role="status">Preparing microphone mode…</p>;
+    runtime={runtime} reset={reset} guard={guard} development={development} /> : <p role="status">Preparing microphone mode…</p>;
 }
 
-function MicrophoneView({ runtime, reset, guard }: { runtime: Runtime; reset: () => Runtime; guard: LeaveGuard }) {
+function MicrophoneView({ runtime, reset, guard, development }: { runtime: Runtime; reset: () => Runtime; guard: LeaveGuard; development: boolean }) {
   const { engine, source, diagnostics, refinement } = runtime;
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot);
   const input = useSyncExternalStore(source.subscribeStatus, source.getSnapshot);
@@ -111,23 +111,25 @@ function MicrophoneView({ runtime, reset, guard }: { runtime: Runtime; reset: ()
     void next.source.start();
   };
   return <>
-    <div className="lesson-heading"><div><p className="eyebrow">Live teaching / Microphone</p><h2>记录自己的讲授</h2><p>自然讲述，随后核对教学对象、发展过程和原话。Stop 后记录继续保留。</p></div>
-      <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p></div>
-    <JevSetup onReady={setJevReady} />
-    <div className="provider-setup" role="status"><p>{setupMessage}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>Check Voice gateway again</button>}</div>
+    {development && <div className="lesson-heading"><div><p className="eyebrow">Live teaching / Microphone</p><h2>记录自己的讲授</h2><p>自然讲述，随后核对教学对象、发展过程和原话。Stop 后记录继续保留。</p></div>
+      <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p></div>}
+    <details className="capture-setup" open={development || undefined}><summary>采集设置</summary><div className="capture-settings-body">
+    <JevSetup onReady={setJevReady} compact={!development} />
+    <div className="provider-setup" role="status"><p>{development ? setupMessage : speechmaticsReady ? '麦克风服务就绪' : '麦克风服务未连接'}</p>{!speechmaticsReady && <button onClick={() => setAttempt(value => value + 1)}>{development ? 'Check Voice gateway again' : '重新连接'}</button>}</div>
+    <RefinementControls refinement={refinement} compact={!development} />
+    </div></details>
     {(input.error || input.inputError || snapshot.inputError || (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)) &&
       <p className="provider-error" role="alert">{input.error ?? input.inputError ?? snapshot.inputError ?? (snapshot.lastSemantic?.error ?? snapshot.lastDecision?.error)}</p>}
-    <section className="replay-controls" aria-label="Microphone controls"><div className="buttons">
+    <section className="replay-controls capture-controls" aria-label="Microphone controls">{!development && <p className={`replay-status ${input.status}`} role="status"><span />{statusLabel}</p>}<div className="buttons">
       <button className="primary-button" disabled={busy || (input.status !== 'running' && (!jevReady || !speechmaticsReady))}
         onClick={() => input.status === 'running' ? void source.stop() : start()}>
         {input.status === 'running' ? 'Stop microphone' : input.status === 'stopping' ? 'Finishing session…'
           : input.status === 'connecting' ? 'Connecting…' : input.status === 'error' ? 'Reconnect microphone'
             : input.status === 'stopped' ? 'Start new session' : 'Start microphone'}
       </button><button className="reset-button" onClick={() => { if (guard.current()) reset(); }}>Reset</button>
-    </div><p>Microphone <span>·</span> Mandarin / English <span>·</span> Jev</p></section>
-    <RefinementControls refinement={refinement} />
-    <TraceWorkspace engine={engine} trace={runtime.trace} guard={guard} onDelete={() => { runtime.deleteLocal(); reset(); }} />
-    {DebugPanel && <div className="debug-toggle"><button aria-expanded={debugOpen} onClick={() => setDebugOpen(open => !open)}>{debugOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button></div>}
-    {DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName="jev" diagnostics={diagnostics} refinement={refined} /></Suspense>}
+    </div>{development && <p>Microphone <span>·</span> Mandarin / English <span>·</span> Jev</p>}</section>
+    <TraceWorkspace engine={engine} trace={runtime.trace} guard={guard} display={refined.cues} onDelete={() => { runtime.deleteLocal(); reset(); }} />
+    {development && DebugPanel && <div className="debug-toggle"><button aria-expanded={debugOpen} onClick={() => setDebugOpen(open => !open)}>{debugOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button></div>}
+    {development && DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName="jev" diagnostics={diagnostics} refinement={refined} /></Suspense>}
   </>;
 }

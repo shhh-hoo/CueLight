@@ -1,3 +1,4 @@
+import { inspect, records } from './workbench-helpers';
 import { latestSourceId, replayReply, semanticReply } from './semantic-mock';
 import { test, expect, type Page } from '@playwright/test';
 import type { LessonHistory } from '../src/alive/types';
@@ -11,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 const osmosis = 'Osmosis is the movement of water across a partially permeable membrane.';
 async function ready(page: Page) {
   await page.route('**/api/jev/status', route => route.fulfill({ json: { configured: true, model: 'jev-test-transport' } }));
-  await page.goto('/');
+  await page.goto('/dev');
   await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
   await expect(page.getByText('Jev ready', { exact: false })).toBeVisible();
 }
@@ -20,7 +21,7 @@ test('Jev configuration is explicit; default demo and missing key never request 
   let calls = 0;
   await page.route('**/api/jev/inspect', route => { calls++; return route.abort(); });
   await page.route('**/api/jev/status', route => route.fulfill({ json: { configured: false, model: 'jev-latest' } }));
-  await page.goto('/');
+  await page.goto('/dev');
   await expect(page.getByLabel('Decision provider', { exact: true })).toHaveValue('mock');
   await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
   await expect(page.getByText('Add TYPESAFE_API_KEY', { exact: false })).toBeVisible();
@@ -45,17 +46,17 @@ test('Jev HTTP decisions drive the existing Engine and preserve Cue identity on 
   await page.getByRole('button', { name: 'Show diagnostics' }).click();
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
-  const id = await page.getByTestId('cue-detail').getAttribute('data-cue-id');
+  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
+  const id = await page.getByTestId('current-cue').getAttribute('data-cue-id');
   await page.clock.runFor(3_600);
-  await expect(page.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
-  await expect(page.getByTestId('cue-detail')).toHaveAttribute('data-cue-id', id!);
+  await expect(page.getByTestId('current-cue')).toContainText('The moving particles are water, not solute.');
+  await expect(page.getByTestId('current-cue')).toHaveAttribute('data-cue-id', id!);
   await expect(page.getByTestId('returned-action')).toHaveText('REVISE');
   await expect(page.getByText('Jev provider', { exact: false })).toBeVisible();
   await expect(page.getByText('Decision latency', { exact: true })).toBeVisible();
   await page.clock.runFor(6_200);
-  await page.getByTestId('cue-choice').nth(1).click();
-  await expect(page.getByTestId('cue-detail')).toContainText('Diffusion is the net movement');
+  await inspect(page, 1);
+  await expect(page.getByTestId('current-cue')).toContainText('Diffusion is the net movement');
   await expect(page.getByTestId('cue-choice').first()).toContainText(osmosis);
   expect(payloadKeys.every(keys => JSON.stringify(keys) === JSON.stringify(['contract', 'inspectionId', 'omittedSourceAlternatives', 'sessionEpoch', 'sessionId', 'sources', 'stage', 'workingSet']))).toBe(true);
 });
@@ -74,11 +75,11 @@ test('Jev failure keeps the existing Cue and shows a service error outside sourc
   await ready(page);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
+  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
   await page.clock.runFor(3_600);
   await expect(page.getByRole('alert')).toContainText('Jev could not make a decision');
-  await expect(page.getByTestId('cue-detail')).not.toContainText('The moving particles');
-  await expect(page.getByTestId('cue-detail')).not.toContainText('Jev');
+  await expect(page.getByTestId('current-cue')).not.toContainText('The moving particles');
+  await expect(page.getByTestId('current-cue')).not.toContainText('Jev');
 });
 
 test('reset and provider switch abort delayed Jev work without writing into a new session', async ({ page }) => {
@@ -100,10 +101,10 @@ test('reset and provider switch abort delayed Jev work without writing into a ne
   await page.getByLabel('Decision provider', { exact: true }).selectOption('mock');
   release();
   await page.clock.runFor(20_000);
-  await expect(page.getByTestId('cue-detail')).toHaveCount(0);
+  await expect(page.getByTestId('current-cue')).toHaveCount(0);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(2_250);
-  await expect(page.getByTestId('cue-detail')).toContainText(osmosis);
+  await expect(page.getByTestId('current-cue')).toContainText(osmosis);
   expect(received).toBe(1);
 });
 
@@ -113,7 +114,7 @@ test('configuration service failure is recoverable without making a model reques
     ? route.fulfill({ json: { configured: true, model: 'jev-test-transport' } })
     : route.fulfill({ status: 503, json: { error: 'Unavailable' } }));
   await page.route('**/api/jev/inspect', route => route.abort());
-  await page.goto('/');
+  await page.goto('/dev');
   await page.getByLabel('Decision provider', { exact: true }).selectOption('jev');
   await expect(page.getByText('Jev is unavailable', { exact: false })).toBeVisible();
   available = true;
@@ -133,7 +134,7 @@ test('delete invalidates a delayed semantic result before it can resurrect local
     const key = Object.keys(sessionStorage).find(k => k.startsWith('cuelight:alive:') && JSON.parse(sessionStorage.getItem(k)!).events.some((e: { operations: { type: string }[] }) => e.operations.some(op => op.type === 'RECORD_EVIDENCE')))!;
     return [key, key.replace('cuelight:alive:', 'cuelight:trace:')];
   });
-  await page.getByRole('button', { name: '删除当前本地记录' }).click(); release(); await page.clock.runFor(20_000);
+  await records(page); await page.getByRole('button', { name: '删除当前本地记录' }).click(); release(); await page.clock.runFor(20_000);
   await expect(page.getByTestId('cue-choice')).toHaveCount(0);
   expect(await page.evaluate(keys => keys.map(k => sessionStorage.getItem(k)), keys)).toEqual(keys.map(() => null));
 });
@@ -144,6 +145,7 @@ test('native Jev accepted history exports to TRACE and reopens without provider 
   await ready(page);
   await page.getByRole('button', { name: 'Start replay' }).click();
   await page.clock.runFor(16_850);
+  await records(page);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出 TRACE 文件', exact: true }).click();
   const stream = (await (await download).createReadStream())!;
@@ -160,10 +162,11 @@ test('native Jev accepted history exports to TRACE and reopens without provider 
 
   const fresh = await context.newPage(); const calls: string[] = [];
   await fresh.route('**/api/**', route => { calls.push(route.request().url()); return route.abort(); });
-  await fresh.goto('/');
+  await fresh.goto('/dev');
   await fresh.getByLabel('打开 TRACE 文件').setInputFiles({ name: 'native.trace.json', mimeType: 'application/json', buffer: Buffer.from(json) });
   const view = fresh.getByRole('region', { name: '教师 TRACE' }).filter({ visible: true });
   await expect(view.getByTestId('cue-choice')).toHaveCount(2);
+  await inspect(view);
   await expect(view.getByTestId('cue-detail')).toContainText(osmosis);
   await expect(view.getByTestId('cue-detail')).toContainText('The moving particles are water, not solute.');
   await view.getByLabel('Cue 版本').selectOption('1');

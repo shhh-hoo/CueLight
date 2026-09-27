@@ -91,7 +91,7 @@ function ReplayView({ runtime: { engine, replay, trace, deleteLocal, refinement,
         <p>Text replay <span>·</span> 1× <span>·</span> {providerName === 'jev' ? 'Jev' : 'Scripted demo'}</p>
       </section>
       {refinement && <RefinementControls refinement={refinement} />}
-      <TraceWorkspace engine={engine} trace={trace} guard={guard} onDelete={() => { deleteLocal(); reset(); }} />
+      <TraceWorkspace engine={engine} trace={trace} guard={guard} display={refined?.cues} onDelete={() => { deleteLocal(); reset(); }} />
       {DebugPanel && <div className="debug-toggle"><button aria-expanded={debugOpen} onClick={() => setDebugOpen(open => !open)}>{debugOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button></div>}
       {DebugPanel && debugOpen && <Suspense fallback={<p>Loading diagnostics…</p>}><DebugPanel snapshot={snapshot} providerName={providerName} diagnostics={diagnostics} refinement={refined} /></Suspense>}
     </>
@@ -99,7 +99,8 @@ function ReplayView({ runtime: { engine, replay, trace, deleteLocal, refinement,
 }
 
 export default function App() {
-  const [inputMode, setInputMode] = useState<'replay' | 'microphone'>('replay');
+  const development = location.pathname === '/dev';
+  const [inputMode, setInputMode] = useState<'replay' | 'microphone'>(development ? 'replay' : 'microphone');
   const [fixtureId, setFixtureId] = useState(replayFixtures[0]!.id);
   const [providerName, setProviderName] = useState<ProviderName>('mock');
   const [opened, setOpened] = useState<OpenedTrace | null>(null);
@@ -110,7 +111,7 @@ export default function App() {
   const importGeneration = useRef(0);
   const fixture = replayFixtures.find(item => item.id === fixtureId)!;
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${development ? 'development-workbench' : 'teacher-workbench'}`}>
       <header className="app-header">
         <a className="wordmark" href="/" aria-label="CueLight home" onClick={e => { if (!guard.current()) e.preventDefault(); }}><span className="brand-mark" aria-hidden="true"><i /></span>CueLight</a>
         <label className="file-picker">{opening ? '正在验证文件…' : '打开 TRACE 文件'}<input aria-label="打开 TRACE 文件" type="file" accept=".json,application/json" onChange={async event => {
@@ -125,17 +126,16 @@ export default function App() {
       </header>
       {importError && <p role="alert" className="provider-error">{importError}</p>}
       {opened && <><div className="archive-banner"><p>只读文件 · 不调用模型或麦克风。原会话保留；若正在采集，它仍继续运行。</p><button className="secondary-button" onClick={() => setOpened(null)}>返回当前会话</button></div><ImportedTrace key={openedVersion} opened={opened} /></>}
-      <div hidden={!!opened}>
-        <div className="session-selectors trace-selectors">
+      <div className="session-content" hidden={!!opened}>
+        {development && <div className="session-selectors trace-selectors">
           <label className="lesson-picker"><span>输入来源</span><select aria-label="Input source" value={inputMode} onChange={event => { if (guard.current()) setInputMode(event.target.value as 'replay' | 'microphone'); }}><option value="replay">文本回放</option><option value="microphone">麦克风</option></select></label>
           {inputMode === 'replay' && <>
           <label className="lesson-picker"><span>梳理方式</span><select aria-label="Decision provider" value={providerName} onChange={event => { if (guard.current()) setProviderName(event.target.value as ProviderName); }}><option value="mock">离线编写示例</option><option value="jev">Jev</option></select></label>
           <label className="lesson-picker"><span>示例</span><select aria-label="Lesson" value={fixtureId} onChange={event => { if (guard.current()) setFixtureId(event.target.value); }}>{replayFixtures.map(item => <option key={item.id} value={item.id}>{item.subject}</option>)}</select></label>
           </>}
-        </div>
-        {inputMode === 'microphone' ? <MicrophoneSession guard={guard} /> : <ReplaySession key={`${fixture.id}-${providerName}`} fixture={fixture} providerName={providerName} guard={guard} />}
+        </div>}
+        {inputMode === 'microphone' ? <MicrophoneSession guard={guard} development={development} /> : <ReplaySession key={`${fixture.id}-${providerName}`} fixture={fixture} providerName={providerName} guard={guard} />}
       </div>
-      <footer className="app-footer"><p>讲授记录 · 来源可核对 · 笔记独立保存</p><p>TRACE V0 · 教师工作台</p></footer>
     </main>
   );
 }

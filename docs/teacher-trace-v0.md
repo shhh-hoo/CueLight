@@ -1,5 +1,7 @@
 # Teacher TRACE V0
 
+> This records PR #18’s original implementation and validation. The current Display / Lesson Flow composition, entry routes and follow-up verification are documented in [Teacher workbench layout](teacher-workbench-layout.md). The archive, source and semantic ownership contracts below remain in force.
+
 ## Scope and baseline
 
 Product question: can a teacher inspect how a captured lecture developed, verify each Cue against original evidence, keep independent notes, and leave with a portable record? Deterministic fixtures test engineering contracts, not real classroom/model quality.
