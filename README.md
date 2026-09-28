@@ -1,3 +1,5 @@
+> 模型职责、中文说明与真实指令统一入口：[Prompt 工作区](prompts/README.md)。`npm run prompts:read` 离线打开完整手册；未实现职责与 NOT_RUN 证据也在总览中。
+
 # CueLight
 
 CueLight is a teacher workspace for reviewing what was actually taught, how ideas developed, and where each interpretation came from. **The teacher workbench** opens on the real current/previous CueSurface. Teachers can speak, browse Lesson Flow, check a source, and edit independent notes in any order. TRACE V0 supplies the full history and portable archives. It describes accepted interpretations; it does not score or diagnose teaching.
@@ -46,6 +48,18 @@ npm run preview
 ```
 
 The production browser bundle has the same teacher Display, Flow and archive support. Offline replay/provider selectors are confined to the explicit `/dev` test route; the debug panel, upstream Jev adapter and credentials are absent from production. Fonts use local system fallbacks. Scripted mode makes no external requests. The tab-scoped lesson journal remains recoverable; the UI starts a new capture on reload.
+
+## Jev prompt workflow
+
+See [the Jev semantic prompt module](prompts/jev-semantic/README.md) for the current contract, executable wording, curated cases and offline verification.
+
+```sh
+npm run eval:jev:validate
+npm run eval:jev
+npm run eval:jev:view
+```
+
+**`eval:jev` is LIVE and may incur TypeSafe/Jev cost.** Config validation is provider-free; CI runs only validation and deterministic tests.
 
 ## Enable Jev locally
 

@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: CueLight Presentation V1 fidelity review (LIVE; OpenAI cost; semantic judgments UNSCORED)
+prompts:
+  - '{{caseId}}'
+providers:
+  - id: file://prompts/presentation-v1/evals/provider.ts
+    label: CueLight shared Presentation builder and parser
+tests: file://prompts/presentation-v1/evals/cases.ts
+sharing: false
+evaluateOptions:
+  maxConcurrency: 1
+  cache: false

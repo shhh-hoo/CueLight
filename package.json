@@ -17,7 +17,19 @@
     "check": "npm run typecheck && npm test && npm run test:e2e",
     "replay": "node scripts/replay.mjs",
     "voice": ".venv/bin/python voice_gateway/gateway.py",
-    "test:voice": ".venv/bin/python -m unittest discover -s voice_gateway -p \"test_*.py\""
+    "test:voice": ".venv/bin/python -m unittest discover -s voice_gateway -p \"test_*.py\"",
+    "eval:jev:validate": "node scripts/jev-eval.mjs validate",
+    "eval:jev": "node scripts/jev-eval.mjs live",
+    "eval:jev:view": "node scripts/jev-eval.mjs view",
+    "test:jev-evals": "vitest run prompts/jev-semantic/evals",
+    "prompts:read": "node --import ./scripts/register-ts.mjs scripts/prompt-handbook.mjs",
+    "eval:presentation:validate": "node scripts/presentation-eval.mjs validate",
+    "eval:presentation": "node scripts/presentation-eval.mjs live",
+    "eval:view": "node scripts/jev-eval.mjs view",
+    "eval:freeze": "node --import ./scripts/register-ts.mjs scripts/eval-freeze.mjs",
+    "eval:preview": "node --import ./scripts/register-ts.mjs scripts/eval-preview.mjs",
+    "eval:compare": "node scripts/eval-compare.mjs",
+    "test:prompt-workspace": "vitest run prompts/presentation-v1 prompts/evals"
   },
   "dependencies": {
     "@speechmatics/browser-audio-input": "2.0.4",
@@ -29,6 +41,8 @@
     "@types/node": "26.6.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "promptfoo": "0.123.1",
     "typescript": "7.0.2",
     "vite": "8.3.0",
     "vitest": "5.0.1"

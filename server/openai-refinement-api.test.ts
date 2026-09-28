@@ -140,3 +140,15 @@ it('6000 ms is the single effective server deadline, including exported response
   expect(transport.mock.calls[0]![1].signal.aborted).toBe(true);
   expect(transport).toHaveBeenCalledOnce();
 });
+
+// Captured from the unmodified HTTP path at 8421c8526e456deb0f716aa6935e6416bd669767,
+// before extracting the builder. Do not regenerate as part of a wording migration.
+it.each(['gpt-5.6-luna', 'model-test'])('preserves the pre-extraction provider body for %s', async model => {
+  const transport = vi.fn().mockResolvedValue(Response.json(completed(source)));
+  vi.stubGlobal('fetch', transport);
+  const response = harness({ OPENAI_REFINEMENT_MODEL: model }).request('/api/openai/refine', {
+    ...input, referenceContext: [{ id: 'earlier', text: 'Earlier context.', startMs: 0, endMs: 0 }],
+  });
+  await vi.waitFor(() => expect(response.writableEnded).toBe(true));
+  expect(JSON.parse(transport.mock.calls[0]![1].body)).toMatchSnapshot();
+});
