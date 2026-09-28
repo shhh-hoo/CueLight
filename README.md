@@ -1,3 +1,5 @@
+> 模型职责、中文说明与真实指令统一入口：[Prompt 工作区](prompts/README.md)。`npm run prompts:read` 离线打开完整手册；未实现职责与 NOT_RUN 证据也在总览中。
+
 # CueLight
 
 CueLight is a teacher workspace for reviewing what was actually taught, how ideas developed, and where each interpretation came from. **The teacher workbench** opens on the real current/previous CueSurface. Teachers can speak, browse Lesson Flow, check a source, and edit independent notes in any order. TRACE V0 supplies the full history and portable archives. It describes accepted interpretations; it does not score or diagnose teaching.

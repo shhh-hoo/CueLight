@@ -5,7 +5,8 @@ import { buildSemanticRequest, compileProposal, MAX_REQUEST_CODE_UNITS, operatio
   validateSemanticInput, type SemanticInput, type SemanticJudgment } from '../../../src/alive/inspection.ts';
 import { SemanticProviderError } from '../../../src/decision/semantic-failure.ts';
 import { constructFixture, type LessonFixture } from './fixtures.ts';
-import { getCase } from './cases.ts';
+import { cases, type EvalCase } from './cases.ts';
+import { evaluationRecord, frozenCases, blockedRecord } from '../../evals/record.ts';
 
 type Inspector = (input: SemanticInput) => Promise<SemanticJudgment>;
 export async function evaluateFixture(fixture: LessonFixture, inspect: Inspector, model = 'jev-latest'): Promise<ProviderResponse> {
@@ -53,22 +54,42 @@ export async function evaluateFixture(fixture: LessonFixture, inspect: Inspector
 // A second constructor argument is only an offline test seam; Promptfoo supplies one.
 type Dependencies = { env?: NodeJS.ProcessEnv; transport?: typeof fetch };
 export default class CueLightProvider implements ApiProvider {
+  private readonly attempted = new Set<unknown>();
   constructor(private readonly options: ProviderOptions = {}, private readonly dependencies: Dependencies = {}) {}
   id() { return this.options.id ?? 'cuelight:alive-jev-v1'; }
   async callApi(_prompt: string, context?: CallApiContextParams): Promise<ProviderResponse> {
     const env = this.dependencies.env ?? process.env;
     if (env.CI || env.CUELIGHT_JEV_EVAL_LIVE !== '1') {
-      return { error: 'Live Jev evaluation is disabled. Run npm run eval:jev locally to explicitly allow TypeSafe/Jev cost.' };
+      return { error: 'Live Jev evaluation is disabled. Run npm run eval:jev locally to explicitly allow TypeSafe/Jev cost.', metadata: blockedRecord('teaching-understanding', 'disabled') };
     }
-    if (!env.TYPESAFE_API_KEY?.trim()) return { error: 'Live evaluation requires TYPESAFE_API_KEY.' };
+    if (!env.TYPESAFE_API_KEY?.trim()) return { error: 'Live evaluation requires TYPESAFE_API_KEY.', metadata: blockedRecord('teaching-understanding', 'missing_credentials') };
     try {
       const { jev } = parseRuntimeConfig({ JEV_MODEL: env.JEV_MODEL, JEV_TIMEOUT_MS: env.JEV_TIMEOUT_MS });
-      const fixture = getCase(context?.vars.caseId).fixture;
-      return await evaluateFixture(fixture, input => inspectWithJev(input, { ...jev, apiKey: env.TYPESAFE_API_KEY!,
-        transport: this.dependencies.transport }), jev.model);
+      const corpus = frozenCases('jev', cases, env) as EvalCase[];
+      const test = corpus.find(c => c.id === context?.vars.caseId);
+      if (!test) throw new Error('Unknown case');
+      const limit = Number(env.CUELIGHT_EVAL_MAX_CALLS ?? corpus.length);
+      const request = buildSemanticRequest(constructFixture(test.fixture).input, jev.model);
+      if (!request.state.coverage.contextBlocked && JSON.stringify(request).length <= MAX_REQUEST_CODE_UNITS) {
+        if (!Number.isSafeInteger(limit) || limit < 1 || this.attempted.size >= limit || this.attempted.has(test.id)) return { error: 'Evaluation call budget or single-attempt limit reached.', metadata: blockedRecord('teaching-understanding', 'call_limit') };
+        this.attempted.add(test.id);
+      }
+      const metadata = evaluationRecord('jev', request, corpus, jev);
+      const result = await evaluateFixture(test.fixture, input => {
+        metadata.requestStatus = 'sent'; metadata.callStatus = 'attempted';
+        return inspectWithJev(input, { ...jev, apiKey: env.TYPESAFE_API_KEY!, transport: this.dependencies.transport });
+      }, jev.model);
+      const output = typeof result.output === 'string' ? JSON.parse(result.output) : {};
+      return { ...result, metadata: { ...metadata,
+        requestStatus: metadata.requestStatus === 'sent' ? 'sent' : 'blocked',
+        callStatus: result.error ? 'failed' : metadata.requestStatus === 'sent' ? 'completed' : 'NOT_RUN',
+        failure: result.error ? output.failureKind ?? output.outcome : null,
+        actualModel: output.model ?? null,
+        modelBehavior: metadata.requestStatus === 'sent' ? test.metadata.kind === 'exploratory' ? 'UNSCORED' : 'ASSERTIONS_SEPARATE' : 'NOT_RUN' } };
+
     } catch {
       // Do not echo arbitrary exceptions, environment values or upstream response bodies.
-      return { error: 'Cannot construct the curated lesson fixture or Jev configuration.' };
+      return { error: 'Cannot construct the curated lesson fixture or Jev configuration.', metadata: blockedRecord('teaching-understanding', 'construction_failure') };
     }
   }
 }

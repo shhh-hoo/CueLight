@@ -8,7 +8,7 @@ type Expected = {
 };
 export type EvalCase = {
   id: string; description: string;
-  metadata: { kind: 'invariant' | 'boundary' | 'regression' | 'exploratory';
+  metadata: { sourceKind?: 'authored'; use?: 'development' | 'regression' | 'exploratory'; kind: 'invariant' | 'boundary' | 'regression' | 'exploratory';
     area: 'identity' | 'revision' | 'wait' | 'authority' | 'recall' | 'relation' | 'coverage' | 'compound';
     principle: string; motivation: string; severity: 'P0' | 'P1' | 'P2' | 'P3' };
   fixture: LessonFixture; expected: Expected;
@@ -106,6 +106,11 @@ export const cases: EvalCase[] = [
     fixture: { cues: [insight], source: 'Insight explains significance, and Darcy refusing to dance illustrates how observation can lead to a separate claim about pride.' },
     expected: {} },
 ];
+
+for (const test of cases) {
+  test.metadata.sourceKind = 'authored';
+  test.metadata.use = test.metadata.kind === 'regression' ? 'regression' : test.metadata.kind === 'exploratory' ? 'exploratory' : 'development';
+}
 
 export function getCase(id: unknown): EvalCase {
   const found = cases.find(c => c.id === id);

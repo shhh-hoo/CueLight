@@ -1,5 +1,9 @@
 # Jev semantic interpreter
 
+完整职责及中文阅读请从 [Prompt 工作区](../README.md) 进入：`npm run prompts:read`。此页仅解释当前 Jev 实现；Presentation 与尚未实现职责在统一手册中。
+
+真实版本比较使用两个明确 Git ref 的生产 builder 与冻结案例/evaluator，见工作区的 `eval:freeze` / `eval:preview` / `eval:compare`。不能仅改 YAML prompt 标签。
+
 This module makes the existing `alive-jev-v1` classroom interpreter readable, reviewable in Git, and evaluable through its real production path.
 
 Jev selects one grounded operation, each source alternative's pedagogical stance, and whether explicit relation evidence warrants an optional follow-up. It does not write canonical state, generate Cue prose, decide UI attention policy, assign speaker authority, retrieve omitted context, merge/split identities, settle topics, or implement background semantic repair.

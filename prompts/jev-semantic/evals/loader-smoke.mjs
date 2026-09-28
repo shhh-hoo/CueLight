@@ -24,7 +24,7 @@ for (const test of cases) {
 }
 let calls = 0;
 const provider = new loaded.constructor({}, {
-  env: { CUELIGHT_JEV_EVAL_LIVE: '1', TYPESAFE_API_KEY: 'offline-test-key', JEV_MODEL: 'jev-fixture' },
+  env: { CUELIGHT_JEV_EVAL_LIVE: '1', TYPESAFE_API_KEY: 'offline-test-key', CUELIGHT_EVAL_MAX_CALLS: '20', JEV_MODEL: 'jev-fixture' },
   transport: async (url, init) => {
     assert.equal(url, JEV_ENDPOINT);
     assert.ok(replies.has(init.body), 'Unexpected request body; only authored responses are allowed.');
