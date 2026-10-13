@@ -31,15 +31,23 @@ export default class PresentationProvider implements ApiProvider {
       const body = buildPresentationRequest(fixture.input, config);
       const metadata = evaluationRecord('presentation', body, corpus, config);
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         metadata.requestStatus = 'sent'; metadata.callStatus = 'attempted';
-        const response = await (this.dependencies.transport ?? fetch)('https://api.openai.com/v1/responses', {
-          method: 'POST', headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body), signal: controller.signal,
+        // Abort is best effort. The deadline must settle even when transport or
+        // body parsing ignores it; late work must never mutate result metadata.
+        const deadline = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => { controller.abort(); reject(new Error('timeout')); }, config.timeoutMs);
         });
-        if (!response.ok) { await response.body?.cancel(); throw new Error('unavailable'); }
-        const raw: unknown = await response.json();
+        const call = async (): Promise<unknown> => {
+          const response = await (this.dependencies.transport ?? fetch)('https://api.openai.com/v1/responses', {
+            method: 'POST', headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body), signal: controller.signal,
+          });
+          if (!response.ok) { await response.body?.cancel(); throw new Error('unavailable'); }
+          return response.json();
+        };
+        const raw = await Promise.race([deadline, call()]);
         if (raw && typeof raw === 'object' && 'model' in raw && typeof raw.model === 'string') metadata.actualModel = raw.model;
         const reply = parsePresentationResponse(raw);
         if ('error' in reply) return { prompt: JSON.stringify(body), error: `Presentation failure (${reply.error}).`,
@@ -49,7 +57,7 @@ export default class PresentationProvider implements ApiProvider {
           metadata: { ...metadata, callStatus: 'completed', modelBehavior: 'UNSCORED' } };
       } catch { return { prompt: JSON.stringify(body), error: controller.signal.aborted ? 'Presentation failure (timeout).' : 'Presentation failure (unavailable).',
         metadata: { ...metadata, callStatus: 'failed', failure: controller.signal.aborted ? 'timeout' : 'unavailable' } }; }
-      finally { clearTimeout(timer); }
+      finally { if (timer !== undefined) clearTimeout(timer); }
     } catch { return { error: 'Cannot construct the frozen Presentation fixture or configuration.', metadata: blockedRecord('accepted-expression', 'construction_failure') }; }
   }
 }

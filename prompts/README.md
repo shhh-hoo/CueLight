@@ -30,7 +30,9 @@ npm run eval:view
 npm run eval:jev:view
 ```
 
-validate 只运行 `promptfoo validate config`，绝不运行会调用 provider 的 `validate target`。Promptfoo 锁定 0.123.1；原生 UI 用于输入／输出、实际 prompt、筛选、对照与人工评论。没有另建结果面板。阅读默认全职责，NOT_RUN 与 UNSCORED 均不能解释为语义通过。
+validate 只运行 `promptfoo validate config`，绝不运行会调用 provider 的 `validate target`。Promptfoo 锁定 0.124.1；原生 UI 用于输入／输出、实际 prompt、筛选、对照与人工评论。没有另建结果面板。阅读默认全职责，NOT_RUN 与 UNSCORED 均不能解释为语义通过。
+
+开发工具依赖的更新、FTP 子依赖覆盖及尚无上游修复的 node-forge 告警见 [依赖审计复核](dependency-audit.md)。完整 audit 尚未清零，不能把生产依赖零告警当成开发工具无风险。
 
 ## 仅获准付费后运行
 

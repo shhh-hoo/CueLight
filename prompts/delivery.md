@@ -59,3 +59,20 @@
 依赖最小变化：esbuild 0.28.2 原本已在锁文件，现显式声明为开发依赖供离线 TS 源加载；锁文件仅根声明增加一行，无新增解析包、生产依赖或版本变化。无 key、真实课堂、数据库/cache、模型结果或手册缓存提交。没有自动合并、部署、Cloud 分享或付费调用。
 
 使用命令与冻结版本比较步骤见 README.md；每次改动需写明受影响原则、预期改善、可能损失和权限不变项，逐例保留改好及改坏，不追求回归集总分。此次只改变可审查性与评测机制，没有声称改进语义质量。
+
+## 2026-10-13 PR 收尾复核
+
+本轮在 f41357f 上继续，不修改 Jev 请求、模型配置、生产 Presentation 指令或业务权限。产品问题是评测结果是否忠实反映运行期限，而不是提高模型分数。工程合同为超时独立终结、迟到结果不可改写、同一案例只调用一次、无重试和无成功空输出。
+
+Presentation provider 现在以 Promise.race 覆盖 fetch 和响应 JSON 解析；到期先取消并将结果记为 failed/timeout。迟到工作不更新 actualModel、output 或任何已返回元数据。新增两条 fake-timer 回归：transport 忽略 abort 和 body 解析忽略 abort。两条测试在未修复实现上均失败，修复后通过；两种情况下均在释放迟到工作前确认已结束，再验证迟到成功不改变记录、重复案例不重试、计时器清理。
+
+Promptfoo 更新到 0.124.1，basic-ftp 覆盖为 6.2.3，source-map-js 更新为 1.2.2。FTP 覆盖用 get-uri 的真实入口、模拟 Client 的 list fallback/download/close 验证，所有 Node 网络入口封锁。依赖变更、剩余 node-forge 告警与复核命令见 [依赖审计复核](dependency-audit.md)。完整 audit 为 3 个 High 包记录（同一无上游修复告警），0 Critical；生产依赖 audit 为 0。没有使用 audit fix --force、降级工具或删除漏洞依赖来隐藏告警。
+
+本地 Node v24.5.0、Python 3.12.11，从最终锁文件 npm ci 后实际完成：
+
+- npm run check：typecheck、**386 unit/contract tests（29 files）**、production build、**43 browser tests** 全部通过。
+- npm run test:voice：**7 tests** 通过，仅保留原 operating_point 弃用警告。
+- 两套 eval config validation、禁网手册生成、git diff --check 通过。
+- 新版 Promptfoo 真实 loader、冻结 evaluator/corpus、离线版本比较包含在完整单测中；focused workspace **28 tests** 也通过。
+
+远端提交与 CI 以 PR 当前 head 为准。本轮未合并、部署或调用付费供应商。真实模型语义、独立留出和教师效用仍 NOT_RUN。仓库要求的 typesafe-ai skill 本机未找到，已明确报告；本轮没有用记忆指导改动 TypeSafe/Jev 集成。

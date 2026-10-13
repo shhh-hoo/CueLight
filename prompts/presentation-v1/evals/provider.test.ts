@@ -51,3 +51,43 @@ it('limits repeated attempts and preserves transport failure', async () => {
   expect((await provider.callApi('', context('numbers-units'))).error).toContain('limit');
   expect(transport).toHaveBeenCalledOnce();
 });
+
+it.each(['transport', 'body'] as const)('settles at the deadline while %s ignores abort and discards its late success', async stage => {
+  vi.useFakeTimers();
+  let release!: () => void;
+  const delayed = new Promise<void>(resolve => { release = resolve; });
+  let signal: AbortSignal | undefined;
+  const transport = vi.fn(async (_url, init) => {
+    signal = init?.signal ?? undefined;
+    if (stage === 'transport') await delayed;
+    const response = Response.json(completed({ kind: 'source' }));
+    if (stage === 'body') vi.spyOn(response, 'json').mockImplementation(async () => {
+      await delayed;
+      return completed({ kind: 'source' });
+    });
+    return response;
+  }) as unknown as typeof fetch;
+  try {
+    const provider = new Provider({}, { env: { ...env, OPENAI_REFINEMENT_TIMEOUT_MS: '100' }, transport });
+    let observed: Awaited<ReturnType<Provider['callApi']>> | undefined;
+    const pending = provider.callApi('', context('numbers-units')).then(result => { observed = result; return result; });
+    await vi.advanceTimersByTimeAsync(100);
+    // Do not release the ignored-abort operation until the timeout has settled.
+    expect(observed).toBeDefined();
+    expect(signal?.aborted).toBe(true);
+    const result = await pending;
+    expect(result.error).toContain('timeout');
+    expect(result.output).toBeUndefined();
+    expect(result.metadata).toMatchObject({ requestStatus: 'sent', callStatus: 'failed', failure: 'timeout', actualModel: null, modelBehavior: 'NOT_RUN' });
+    const recorded = JSON.stringify(result);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.stringify(result)).toBe(recorded);
+    expect((await provider.callApi('', context('numbers-units'))).error).toContain('limit');
+    expect(transport).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    release();
+    vi.useRealTimers();
+  }
+});
