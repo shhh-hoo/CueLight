@@ -21,6 +21,10 @@ jobs:
       - run: .venv/bin/python -m pip install -r voice_gateway/requirements.txt
       - run: npm run test:voice
       - run: npm ci
+      # Config validation only: never eval or validate target (both can call providers).
+      - run: npm run eval:jev:validate
+      - run: npm run eval:presentation:validate
+      - run: npm run prompts:read -- --no-open
       - run: npm run typecheck
       - run: npm test
       - run: npx playwright install --with-deps chromium

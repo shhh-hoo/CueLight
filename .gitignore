@@ -11,3 +11,9 @@ artifacts/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Local Promptfoo viewer DB, cache and evaluation exports (never fixtures).
+.promptfoo/
+promptfoo-results*
+prompts/jev-semantic/evals/outputs/
+prompts/jev-semantic/evals/screenshots/

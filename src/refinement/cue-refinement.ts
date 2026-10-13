@@ -1,3 +1,4 @@
+import { presentationInput } from './input';
 import { matchesCueRevision } from '../alive/projection';
 import { refinementConfiguration, type RefinementConfiguration } from '../runtime-config';
 import type { CueEngine } from '../cue/cue-engine';
@@ -77,17 +78,13 @@ export class CueRefinement {
     // The Engine publishes accepted source Cues while request still holds the
     // exact decision input. Do not substitute a newer evidence window here.
     const fragments = snapshot.request?.evidence.fragments ?? snapshot.lesson.evidenceOrder.map(id => snapshot.lesson.evidence[id]!);
-    const first = fragments?.findIndex(fragment => fragment.id === currentCue.sourceFragmentIds[0]) ?? -1;
-    const sourceFragments = fragments?.slice(first, first + currentCue.sourceFragmentIds.length) ?? [];
-    if (!fragments || first < 0 || sourceFragments.length === 0 || sourceFragments.length !== currentCue.sourceFragmentIds.length ||
-        !sourceFragments.every((fragment, index) => fragment.id === currentCue.sourceFragmentIds[index]) ||
-        sourceFragments.map(fragment => fragment.text).join(' ') !== currentCue.text) {
+    const input = presentationInput(this.sessionId, currentCue, fragments);
+    if (!input) {
       this.result(this.target(currentCue), 'incomplete-source');
       this.publish({ lastOutcome: 'incomplete-source' });
       return;
     }
-    this.latest = Object.freeze({ ...this.target(currentCue), sourceText: currentCue.text,
-      sourceFragments: Object.freeze(sourceFragments), referenceContext: Object.freeze(fragments.slice(Math.max(0, first - 2), first)) });
+    this.latest = input;
     if (this.snapshot.enabled && !this.snapshot.stopped) this.queue(this.latest);
   };
 

@@ -18,6 +18,6 @@ export default defineConfig(({ mode }) => {
       openaiRefinementApiPlugin({ apiKey: env.OPENAI_API_KEY, config: config.refinement })],
     server: { proxy: { '/api/voice': { target: 'http://127.0.0.1:8765', ws: true } } },
     preview: { proxy: { '/api/voice': { target: 'http://127.0.0.1:8765', ws: true } } },
-    test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'scripts/**/*.test.ts'], restoreMocks: true },
+    test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'scripts/**/*.test.ts', 'prompts/**/*.test.ts'], restoreMocks: true },
   };
 });

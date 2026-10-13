@@ -28,6 +28,7 @@
     "server",
     "tests",
     "*.config.ts",
-    "scripts"
+    "scripts",
+    "prompts"
   ]
 }
